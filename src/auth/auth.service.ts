@@ -106,7 +106,7 @@ export class AuthService {
         reason: 'LOGIN_SUCCESS',
         provider: LoginEventProvider.EMAIL,
       });
-
+      console.log('session', session);
       return session;
     } catch (error) {
       await this.recordLoginEvent({
@@ -162,7 +162,7 @@ export class AuthService {
         reason: 'LOGIN_SUCCESS',
         provider: LoginEventProvider.GOOGLE,
       });
-
+      console.log('session', session);
       return session;
     } catch (error) {
       await this.recordLoginEvent({
