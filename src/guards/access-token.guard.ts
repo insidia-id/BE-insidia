@@ -19,7 +19,9 @@ export class AccessTokenGuard implements CanActivate {
   canActivate(context: ExecutionContext) {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const token = getBearerToken(request);
-
+    if (process.env.NODE_ENV === 'staging') {
+      console.log('AccessTokenGuard: Extracted token:', token);
+    }
     if (!token) {
       throw new UnauthorizedException('Access token wajib dikirim');
     }
