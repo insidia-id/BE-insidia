@@ -6,24 +6,19 @@ datasource db {
   provider = "postgresql"
 }
 
-enum UserRole {
-  ADMIN
-  ADMIN_MENTOR
-  ADMIN_AKADEMIK
-  MENTOR
-  AKADEMIK
-  GURU
-  MURID
-  WALI_MURID
-  USER_BIASA
-}
-
 enum UserStatus {
   ACTIVE
   SUSPENDED
   BANNED
 }
-
+enum RoleScope {
+  PLATFORM
+  MITRA
+}
+enum MitraType {
+  KAMPUS
+  SEKOLAH
+}
 enum LoginEventProvider {
   GOOGLE
   EMAIL
@@ -172,11 +167,10 @@ model User {
   image           String?
   imagePublicId   String?
 
-  role   UserRole   @default(USER_BIASA)
+  platformRole UserPlatformRole?
   status UserStatus @default(ACTIVE)
 
   bio         String?
-  headline    String?
   websiteUrl  String?
   socialLinks Json?
 
@@ -187,7 +181,7 @@ model User {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
-
+ mitraRoles   UserMitraRole[]
   accounts     Account[]
   authSessions AuthSession[]
   loginEvents  LoginEvent[]
@@ -225,12 +219,103 @@ model User {
 
   muridAsWali MuridProfile[] @relation("WaliMuridRelation")
 
-  @@index([role])
   @@index([status])
   @@index([createdById])
   @@index([deletedAt])
 }
+model Role {
+  id          String    @id @default(cuid())
+  name        String
+  code        String    @unique
+  scope       RoleScope
+  description String?
+  isSystem    Boolean   @default(true)
 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  permissions   RolePermission[]
+  platformUsers UserPlatformRole[]
+  mitraUsers    UserMitraRole[]
+
+  @@index([scope])
+  @@index([deletedAt])
+}
+
+model Permission {
+  id          String    @id @default(cuid())
+  name        String
+  code        String    @unique
+  scope       RoleScope
+  description String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  roles RolePermission[]
+
+  @@index([scope])
+}
+
+model RolePermission {
+  id           String @id @default(cuid())
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+}
+model UserPlatformRole {
+  id     String @id @default(cuid())
+  userId String @unique
+  roleId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@index([roleId])
+}
+model Mitra {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  type      MitraType
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  members   UserMitraRole[]
+
+  @@index([type])
+  @@index([deletedAt])
+}
+model UserMitraRole {
+  id      String @id @default(cuid())
+  userId  String
+  mitraId String
+  roleId  String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mitra Mitra @relation(fields: [mitraId], references: [id], onDelete: Cascade)
+  role  Role  @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, mitraId, roleId])
+  @@index([userId])
+  @@index([mitraId])
+  @@index([roleId])
+}
 model Account {
   userId            String
   type              String
@@ -292,8 +377,6 @@ model MentorProfile {
   userId String @unique
 
   expertise String?
-  bio       String? @db.Text
-  linkedin  String?
   portfolio String?
 
   createdAt DateTime @default(now())

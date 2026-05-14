@@ -11,4 +11,4 @@ COPY . .
 
 RUN npm run build
 
-CMD ["npm", "run", "start:prod"]
+CMD ["sh", "-c", "npm run db:deploy && npm run start:prod"]
