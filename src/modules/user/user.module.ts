@@ -8,9 +8,19 @@ import { UserRepository } from './user.repository';
 import { UserPolicy } from './user.Policy';
 import { RolesModule } from '../roles/roles.module';
 import { AuthModule } from '../auth/auth.module';
-
+import { BullmqModule } from '../../infrastruktur/queue/bullmq/bullmq.module';
+import { BulkUserParserService } from './bulk-upload/bulk-user-parser';
+import { BulkUserValidatorService } from './bulk-upload/bulk-user-validator';
+import { PreviewBulkUserUseCase } from './bulk-upload/preview-bulk-user';
+import { EnqueueBulkUserImportUseCase } from './bulk-upload/enqueue-bulk-user-import';
+import { ProcessBulkUserImportUseCase } from './bulk-upload/process-bulk-user-import';
 @Module({
-  imports: [PrismaModule, forwardRef(() => RolesModule), AuthModule],
+  imports: [
+    PrismaModule,
+    forwardRef(() => RolesModule),
+    AuthModule,
+    forwardRef(() => BullmqModule),
+  ],
   controllers: [UserController],
   providers: [
     UserService,
@@ -18,7 +28,12 @@ import { AuthModule } from '../auth/auth.module';
     JwtTokenService,
     RolesGuard,
     UserPolicy,
+    BulkUserParserService,
+    BulkUserValidatorService,
+    PreviewBulkUserUseCase,
+    EnqueueBulkUserImportUseCase,
+    ProcessBulkUserImportUseCase,
   ],
-  exports: [UserService, UserRepository],
+  exports: [UserService, UserRepository, ProcessBulkUserImportUseCase],
 })
 export class UserModule {}

@@ -18,10 +18,10 @@ export class RolesPermissionService {
     private readonly userRepository: UserRepository,
   ) {}
   async getEffectivePermissions(userId: string, context: hasPermissionContext) {
-    const actor = await this.userRepository.findRoleByUserId(
-      userId,
-      context.mitraId,
+    console.log(
+      `[GET EFFECTIVE PERMISSIONS] userId=${userId} scope=${context.scope} mitraId=${context.mitraId} requireMitraContext=${context.requireMitraContext}`,
     );
+    const actor = await this.userRepository.findRoleByUserId(userId);
     console.log(
       `[GET EFFECTIVE PERMISSIONS] userId=${userId} scope=${context.scope} mitraId=${context.mitraId} actor=`,
       actor,

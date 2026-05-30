@@ -9,6 +9,8 @@ import {
   Query,
   Req,
   UseGuards,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
 
 import { UserService } from './user.service';
@@ -20,16 +22,23 @@ import { updateUserSchema, type UpdateUserDto } from './dto/update-user.dto';
 import { ZodValidationPipe } from '../../shared/zod/zod-validation.pipe';
 
 import { RolesGuard } from '../../shared/guards/admin-access.guard';
-
+import { FileInterceptor } from '@nestjs/platform-express';
+import { PreviewBulkUserUseCase } from './bulk-upload/preview-bulk-user';
+import { EnqueueBulkUserImportUseCase } from './bulk-upload/enqueue-bulk-user-import';
 import {
   AccessTokenGuard,
   type AuthenticatedRequest,
 } from '../../shared/guards/access-token.guard';
+import type { UploadedBulkUserFile } from './bulk-upload/bulk-user.types';
 
 @UseGuards(AccessTokenGuard, RolesGuard)
 @Controller('admin/user')
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly previewBulkUserUseCase: PreviewBulkUserUseCase,
+    private readonly enqueueBulkUserImportUseCase: EnqueueBulkUserImportUseCase,
+  ) {}
 
   @Post()
   create(
@@ -94,5 +103,21 @@ export class UserController {
       scope ?? 'INSIDIA',
       mitraId,
     );
+  }
+  @Post('preview')
+  @UseInterceptors(FileInterceptor('file'))
+  preview(
+    @Req() request: AuthenticatedRequest,
+    @UploadedFile() file: UploadedBulkUserFile,
+  ) {
+    return this.previewBulkUserUseCase.execute(file, request.auth);
+  }
+
+  @Post('import/:jobId')
+  import(
+    @Req() request: AuthenticatedRequest,
+    @Param('jobId') jobId: string,
+  ) {
+    return this.enqueueBulkUserImportUseCase.execute(jobId, request.auth);
   }
 }

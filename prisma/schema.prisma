@@ -157,7 +157,21 @@ enum AuditAction {
   REVIEW_MODERATE
   COMMENT_MODERATE
 }
+enum BulkUploadJobStatus {
+  VALIDATED
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
 
+enum BulkUploadRowStatus {
+  VALID
+  INVALID
+  SUCCESS
+  FAILED
+  SKIPPED
+}
 model User {
   id              String    @id @default(cuid())
   name            String?
@@ -1226,7 +1240,42 @@ model Notification {
   @@index([userId, readAt])
   @@index([type, createdAt])
 }
+model BulkUploadJob {
+  id          String              @id @default(uuid())
+  fileName    String
+  uploadedBy  String?
+  status      BulkUploadJobStatus @default(VALIDATED)
 
+  totalRows   Int @default(0)
+  validRows   Int @default(0)
+  invalidRows Int @default(0)
+  successRows Int @default(0)
+  failedRows  Int @default(0)
+
+  rows        BulkUploadRow[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model BulkUploadRow {
+  id        String              @id @default(uuid())
+  jobId     String
+  rowNumber Int
+
+  rawData   Json
+  errors    Json?
+
+  status    BulkUploadRowStatus
+
+  job       BulkUploadJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([jobId])
+  @@index([status])
+}
 model AuditLog {
   id String @id @default(cuid())
 

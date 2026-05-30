@@ -10,12 +10,13 @@ import { MitraModule } from './modules/mitra/mitra.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { UserModule } from './modules/user/user.module';
-
+import { QueueModule } from './infrastruktur/queue/queue.module';
 @Module({
   imports: [
     AuthModule,
     UserModule,
     RolesModule,
+    QueueModule,
     PermissionsModule,
     MitraModule,
     MitraAcademicModule,

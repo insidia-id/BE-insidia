@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UserController } from './user.controller';
 import { UserService } from './user.service';
+import { PreviewBulkUserUseCase } from './bulk-upload/preview-bulk-user';
+import { EnqueueBulkUserImportUseCase } from './bulk-upload/enqueue-bulk-user-import';
 
 describe('UserController', () => {
   let controller: UserController;
@@ -13,6 +15,14 @@ describe('UserController', () => {
     remove: jest.fn(),
   };
 
+  const previewBulkUserUseCase = {
+    execute: jest.fn(),
+  };
+
+  const enqueueBulkUserImportUseCase = {
+    execute: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.resetAllMocks();
 
@@ -22,6 +32,14 @@ describe('UserController', () => {
         {
           provide: UserService,
           useValue: userService,
+        },
+        {
+          provide: PreviewBulkUserUseCase,
+          useValue: previewBulkUserUseCase,
+        },
+        {
+          provide: EnqueueBulkUserImportUseCase,
+          useValue: enqueueBulkUserImportUseCase,
         },
       ],
     }).compile();
@@ -33,38 +51,58 @@ describe('UserController', () => {
     expect(controller).toBeDefined();
   });
 
-  it('passes creator id from auth payload when creating user', async () => {
+  it('passes auth payload when creating user', async () => {
     const dto = {
       email: 'user@example.com',
-      role: 'USER_BIASA' as const,
+      role: 'USER',
+      scope: 'INSIDIA' as const,
+      status: 'ACTIVE' as const,
     };
-
-    await controller.create(dto, {
+    const request = {
       auth: {
         sub: 'admin-1',
       },
-    } as never);
+    } as any;
 
-    expect(userService.create).toHaveBeenCalledWith(dto, 'admin-1');
+    await controller.create(dto, request);
+
+    expect(userService.create).toHaveBeenCalledWith(dto, request.auth);
   });
 
-  it('passes string id to update without numeric coercion', async () => {
+  it('passes string id and auth payload to update', async () => {
     const dto = {
       name: 'Updated User',
+      scope: 'INSIDIA' as const,
     };
-
-    await controller.update('cuid-user-id', dto);
-
-    expect(userService.update).toHaveBeenCalledWith('cuid-user-id', dto);
-  });
-
-  it('passes actor id from auth payload when deleting user', async () => {
-    await controller.remove('cuid-user-id', {
+    const request = {
       auth: {
         sub: 'admin-1',
       },
-    } as never);
+    } as any;
 
-    expect(userService.remove).toHaveBeenCalledWith('cuid-user-id', 'admin-1');
+    await controller.update('cuid-user-id', dto, request);
+
+    expect(userService.update).toHaveBeenCalledWith(
+      'cuid-user-id',
+      dto,
+      request.auth,
+    );
+  });
+
+  it('passes auth payload and query context when deleting user', async () => {
+    const request = {
+      auth: {
+        sub: 'admin-1',
+      },
+    } as any;
+
+    await controller.remove(request, 'cuid-user-id', 'MITRA', 'mitra-1');
+
+    expect(userService.remove).toHaveBeenCalledWith(
+      'cuid-user-id',
+      request.auth,
+      'MITRA',
+      'mitra-1',
+    );
   });
 });

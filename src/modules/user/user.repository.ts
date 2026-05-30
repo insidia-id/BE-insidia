@@ -12,11 +12,23 @@ import {
   userRole,
 } from './user.constants';
 import { DuplicateUserFieldError } from './user.errors';
+import { CreateUserDto } from './dto/create-user.dto';
+import { mapBulkUploadUserUpsertData, normalizeEmail } from './user.mapper';
 
 @Injectable()
 export class UserRepository {
   constructor(private readonly prisma: PrismaService) {}
+  async upsertBulkUser(rawData: CreateUserDto) {
+    const { create, update } = mapBulkUploadUserUpsertData(rawData);
 
+    return this.prisma.user.upsert({
+      where: {
+        normalizedEmail: normalizeEmail(rawData.email),
+      },
+      create,
+      update,
+    });
+  }
   async create(data: Prisma.UserCreateInput) {
     try {
       return await this.prisma.user.create({
@@ -77,19 +89,12 @@ export class UserRepository {
       select: adminUserSelect,
     });
   }
-  findRoleByUserId(userId: string, mitraId?: string) {
+  findRoleByUserId(userId: string) {
     return this.prisma.user.findUnique({
       where: { id: userId },
       select: {
         insidiaRole: userRole.insidiaRole,
-        mitraRoles: mitraId
-          ? {
-              where: {
-                mitraId,
-              },
-              select: userRole.mitraRoles.select,
-            }
-          : userRole.mitraRoles,
+        mitraRoles: userRole.mitraRoles,
       },
     });
   }
@@ -116,16 +121,11 @@ export class UserRepository {
     });
   }
 
-  findActiveById(
-    id: string,
-    scope: RoleScope = RoleScope.INSIDIA,
-    mitraId?: string,
-  ) {
+  findActiveById(id: string) {
     return this.prisma.user.findFirst({
       where: {
         id,
         deletedAt: null,
-        ...getUserRoleScopeWhere(scope, mitraId),
       },
       select: adminUserSelect,
     });

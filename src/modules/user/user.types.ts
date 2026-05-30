@@ -11,6 +11,7 @@ export type actorRole = {
     };
   } | null;
   mitraRoles: {
+    mitraId?: string;
     role: {
       id: string;
       code: string;

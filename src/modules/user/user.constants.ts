@@ -7,7 +7,6 @@ export const AkademikAllowedTargetRoleCodes = new Set([
   'MURID',
   'GURU',
   'WALI_MURID',
-  'USER',
 ]);
 export type UserFilter = 'all' | 'available' | 'deleted';
 export type Scope = 'INSIDIA' | 'MITRA';

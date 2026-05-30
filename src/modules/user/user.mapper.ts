@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client';
 import { withInsidiaAccess } from '../access-control/access-control.utils';
 import type { CreateUserDto } from './dto/create-user.dto';
 import type { UpdateUserDto } from './dto/update-user.dto';
-import type { insidiaRole } from './user.types';
+type BulkUploadUserRawData = CreateUserDto;
 export function mapCreateUserData(
   dto: CreateUserDto,
   actorId: string | undefined,
@@ -135,4 +135,16 @@ function assignUpdateUserFields(
     data.socialLinks =
       dto.socialLinks === null ? Prisma.JsonNull : dto.socialLinks;
   }
+}
+export function mapBulkUploadUserUpsertData(rawData: CreateUserDto): {
+  create: Prisma.UserCreateInput;
+  update: Prisma.UserUpdateInput;
+} {
+  const create = mapCreateUserData(rawData, undefined);
+  const update = mapUpdateUserData(rawData as UpdateUserDto);
+
+  return {
+    create,
+    update,
+  };
 }

@@ -16,7 +16,7 @@ export const roleCodeSchema = z
   .transform(normalizeRoleCode);
 
 export const createUserSchema = z.object({
-  email: z.email(),
+  email: z.string().trim().email(),
   name: optionalNullableStringSchema,
   phone: optionalNullableStringSchema,
   role: roleCodeSchema.optional().default('USER'),
@@ -24,6 +24,26 @@ export const createUserSchema = z.object({
   scope: z.enum(RoleScope, 'ruang lingkup permission tidak valid'),
   status: z.enum(userStatusValues).optional().default('ACTIVE'),
   mitraId: z.string().trim().min(1).optional(),
+}).superRefine((value, ctx) => {
+  if (value.scope !== 'MITRA') {
+    return;
+  }
+
+  if (!value.mitraId) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'mitraId wajib diisi untuk user scope MITRA',
+      path: ['mitraId'],
+    });
+  }
+
+  if (!value.mitraRole) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'mitraRole wajib diisi untuk user scope MITRA',
+      path: ['mitraRole'],
+    });
+  }
 });
 
 export type CreateUserDto = z.infer<typeof createUserSchema>;
