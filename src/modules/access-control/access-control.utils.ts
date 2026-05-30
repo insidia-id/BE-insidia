@@ -1,32 +1,33 @@
 import { RoleScope } from '@prisma/client';
+import { ProfileUser } from '../auth/auth.repository.types';
 
-export const SYSTEM_PLATFORM_ROLES = [
+export const SYSTEM_INSIDIA_ROLES = [
   {
     code: 'SUPER_ADMIN',
     name: 'Super Admin',
-    scope: RoleScope.PLATFORM,
-    description: 'Akses penuh ke seluruh fitur platform',
+    scope: RoleScope.INSIDIA,
+    description: 'Akses penuh ke seluruh fitur Insidia',
     isSystem: true,
   },
   {
     code: 'ADMIN',
     name: 'Admin',
-    scope: RoleScope.PLATFORM,
-    description: 'Mengelola operasional platform',
+    scope: RoleScope.INSIDIA,
+    description: 'Mengelola operasional Insidia',
     isSystem: true,
   },
   {
     code: 'MENTOR',
     name: 'Mentor',
-    scope: RoleScope.PLATFORM,
-    description: 'Peran mentor di platform',
+    scope: RoleScope.INSIDIA,
+    description: 'Peran mentor di Insidia',
     isSystem: true,
   },
   {
     code: 'USER',
     name: 'User',
-    scope: RoleScope.PLATFORM,
-    description: 'Peran default pengguna platform',
+    scope: RoleScope.INSIDIA,
+    description: 'Peran default pengguna Insidia',
     isSystem: true,
   },
 ] as const;
@@ -63,12 +64,12 @@ export const SYSTEM_MITRA_ROLES = [
 ] as const;
 
 export const SYSTEM_ROLE_SEEDS = [
-  ...SYSTEM_PLATFORM_ROLES,
+  ...SYSTEM_INSIDIA_ROLES,
   ...SYSTEM_MITRA_ROLES,
 ] as const;
 
-export type PlatformAccessCarrier = {
-  platformRole?: {
+export type InsidiaAccessCarrier = {
+  insidiaRole?: {
     role?: {
       code: string;
       permissions?: Array<{
@@ -79,27 +80,96 @@ export type PlatformAccessCarrier = {
     } | null;
   } | null;
 };
-
+export type MitraAccessCarrier = {
+  mitraRoles?: {
+    mitraId?: string;
+    role: {
+      code: string;
+      permissions?: Array<{
+        permission: {
+          code: string;
+        };
+      }>;
+      mitraRolePermissions?: Array<{
+        mitraId: string;
+        permission: {
+          code: string;
+        };
+      }>;
+    };
+    mitra: {
+      id: string;
+      name: string;
+      slug: string;
+    };
+  } | null;
+};
 export function normalizeRoleCode(code: string) {
   return code.trim().toUpperCase().replace(/\s+/g, '_');
 }
 
-export function getPlatformRoleCode(entity: PlatformAccessCarrier) {
-  return entity.platformRole?.role?.code ?? null;
+export function getInsidiaRoleCode(entity: InsidiaAccessCarrier) {
+  return entity.insidiaRole?.role?.code ?? null;
 }
-
-export function getPlatformPermissionCodes(entity: PlatformAccessCarrier) {
+export function getInsidiaPermissionCodes(entity: InsidiaAccessCarrier) {
   return (
-    entity.platformRole?.role?.permissions?.map(
+    entity.insidiaRole?.role?.permissions?.map(
       ({ permission }) => permission.code,
     ) ?? []
   );
 }
+export function getMitraPermissionCodes(entity: MitraAccessCarrier) {
+  return [
+    ...(entity.mitraRoles?.role.permissions?.map(
+      ({ permission }) => permission.code,
+    ) ?? []),
 
-export function withPlatformAccess<T extends PlatformAccessCarrier>(entity: T) {
+    ...(entity.mitraRoles?.role.mitraRolePermissions
+      ?.filter((item) => item.mitraId === entity.mitraRoles?.mitraId)
+      .map(({ permission }) => permission.code) ?? []),
+  ];
+}
+export function getMitraRoles(entity: MitraAccessCarrier) {
   return {
-    ...entity,
-    role: getPlatformRoleCode(entity),
-    permissions: getPlatformPermissionCodes(entity),
+    roleCode: entity.mitraRoles?.role.code ?? null,
+    mitraId: entity.mitraRoles?.mitraId ?? null,
+    mitraName: entity.mitraRoles?.mitra.name ?? null,
+    mitraSlug: entity.mitraRoles?.mitra.slug ?? null,
   };
 }
+export function withMitraAccess<T extends MitraAccessCarrier>(entity: T) {
+  return {
+    mitraRoles: getMitraRoles(entity),
+    permissions: getMitraPermissionCodes(entity),
+  };
+}
+export function withInsidiaAccess<T extends InsidiaAccessCarrier>(entity: T) {
+  return {
+    ...entity,
+    role: getInsidiaRoleCode(entity),
+    permissions: getInsidiaPermissionCodes(entity),
+  };
+}
+// export function getProfileByRole(user: ProfileUser) {
+//   const roleCode = getInsidiaRoleCode(user);
+
+//   switch (roleCode) {
+//     case 'GURU':
+//       return user.guruProfile;
+
+//     case 'MURID':
+//       return user.muridProfile;
+
+//     case 'WALI_MURID':
+//       return user.waliProfile;
+
+//     case 'MENTOR':
+//       return user.mentorProfile;
+
+//     case 'AKADEMIK':
+//       return user.academicProfile;
+
+//     default:
+//       return null;
+//   }
+// }

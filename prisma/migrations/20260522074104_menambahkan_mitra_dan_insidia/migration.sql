@@ -1,0 +1,5 @@
+-- RenameIndex
+ALTER INDEX "ClassGroupCourse_classGroupId_courseId_academicYearId_semesterI" RENAME TO "ClassGroupCourse_classGroupId_courseId_academicYearId_semes_key";
+
+-- RenameIndex
+ALTER INDEX "ClassGroupStudent_classGroupId_studentId_academicYearId_semeste" RENAME TO "ClassGroupStudent_classGroupId_studentId_academicYearId_sem_key";

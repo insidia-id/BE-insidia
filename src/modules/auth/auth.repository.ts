@@ -1,71 +1,17 @@
 import { Injectable } from '@nestjs/common';
-import type { LoginEventProvider, Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastruktur/prisma/prisma.service';
-
-const authPermissionSelect = {
-  code: true,
-} satisfies Prisma.PermissionSelect;
-
-const authSessionUserSelect = {
-  id: true,
-  email: true,
-  emailVerified: true,
-  name: true,
-  status: true,
-  image: true,
-  platformRole: {
-    select: {
-      role: {
-        select: {
-          code: true,
-          permissions: {
-            select: {
-              permission: {
-                select: authPermissionSelect,
-              },
-            },
-          },
-        },
-      },
-    },
-  },
-} satisfies Prisma.UserSelect;
-
-const authUserStatusSelect = {
-  id: true,
-  status: true,
-} satisfies Prisma.UserSelect;
-
-export type SessionUser = Prisma.UserGetPayload<{
-  select: typeof authSessionUserSelect;
-}>;
-
-export type AuthUserStatus = Prisma.UserGetPayload<{
-  select: typeof authUserStatusSelect;
-}>;
-
-export type OAuthAccountInput = {
-  type: string;
-  provider: string;
-  providerAccountId: string;
-  refresh_token: string | null;
-  access_token: string | null;
-  expires_at: number | null;
-  token_type: string | null;
-  scope: string | null;
-  id_token: string | null;
-  session_state: string | null;
-};
-
-export type CreateLoginEventInput = {
-  userId: string | null;
-  email: string;
-  provider: LoginEventProvider;
-  success: boolean;
-  reason: string;
-  ipAddress: string;
-  userAgent?: string;
-};
+import {
+  authSessionUserSelect,
+  authUserStatusSelect,
+  profileUserSelect,
+  sessionSelect,
+} from './auth.repository.types';
+import type {
+  CreateGoogleUserInput,
+  CreateSessionInput,
+  UpdateGoogleUserInput,
+} from './auth.repository.types';
+import type { CreateLoginEventInput, OAuthAccountInput } from './auth.types';
 
 @Injectable()
 export class AuthRepository {
@@ -104,7 +50,7 @@ export class AuthRepository {
       data: {
         email: normalizedEmail,
         normalizedEmail,
-        platformRole: {
+        insidiaRole: {
           create: {
             role: {
               connect: {
@@ -118,12 +64,7 @@ export class AuthRepository {
     });
   }
 
-  createGoogleUser(input: {
-    normalizedEmail: string;
-    name?: string | null;
-    image?: string | null;
-    emailVerified?: Date | null;
-  }) {
+  createGoogleUser(input: CreateGoogleUserInput) {
     return this.prisma.user.create({
       data: {
         email: input.normalizedEmail,
@@ -131,7 +72,7 @@ export class AuthRepository {
         name: input.name,
         image: input.image,
         emailVerified: input.emailVerified,
-        platformRole: {
+        insidiaRole: {
           create: {
             role: {
               connect: {
@@ -145,10 +86,7 @@ export class AuthRepository {
     });
   }
 
-  updateGoogleUser(
-    id: string,
-    data: Pick<Prisma.UserUpdateInput, 'name' | 'image' | 'emailVerified'>,
-  ) {
+  updateGoogleUser(id: string, data: UpdateGoogleUserInput) {
     return this.prisma.user.update({
       where: { id },
       data,
@@ -182,15 +120,7 @@ export class AuthRepository {
     });
   }
 
-  createSession(input: {
-    id: string;
-    userId: string;
-    refreshTokenHash: string;
-    tokenVersion: number;
-    ipAddress: string;
-    userAgent?: string;
-    expiresAt: Date;
-  }) {
+  createSession(input: CreateSessionInput) {
     return this.prisma.authSession.create({
       data: input,
     });
@@ -213,6 +143,19 @@ export class AuthRepository {
   createLoginEvent(input: CreateLoginEventInput) {
     return this.prisma.loginEvent.create({
       data: input,
+    });
+  }
+
+  getUserSelectById(id: string) {
+    return this.prisma.user.findUnique({
+      where: { id },
+      select: profileUserSelect,
+    });
+  }
+  getStatusByUserId(id: string) {
+    return this.prisma.user.findUnique({
+      where: { id },
+      select: sessionSelect,
     });
   }
 }

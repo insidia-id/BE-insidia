@@ -7,10 +7,14 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { RoleScope } from '@prisma/client';
-import { AccessTokenGuard } from '../../shared/guards/access-token.guard';
+import {
+  AccessTokenGuard,
+  type AuthenticatedRequest,
+} from '../../shared/guards/access-token.guard';
 import { Roles, RolesGuard } from '../../shared/guards/admin-access.guard';
 import { ZodValidationPipe } from '../../shared/zod/zod-validation.pipe';
 import {
@@ -29,9 +33,16 @@ export class PermissionsController {
   constructor(private readonly permissionsService: PermissionsService) {}
 
   @Get()
-  @Roles('SUPER_ADMIN')
-  findAllPermissions(@Query('scope') scope?: RoleScope) {
-    return this.permissionsService.findAllPermissions(scope);
+  findAllPermissions(
+    @Req() request: AuthenticatedRequest,
+    @Query('scope') scope: RoleScope,
+    @Query('mitraId') mitraId?: string,
+  ) {
+    return this.permissionsService.findAllPermissions(
+      request.auth,
+      scope,
+      mitraId,
+    );
   }
 
   @Post()
@@ -44,24 +55,34 @@ export class PermissionsController {
   }
 
   @Get(':id')
-  @Roles('SUPER_ADMIN')
-  findPermissionById(@Param('id') id: string) {
-    return this.permissionsService.findPermissionById(id);
+  findPermissionById(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+  ) {
+    return this.permissionsService.findPermissionById(request.auth, id);
   }
 
   @Patch(':id')
   @Roles('SUPER_ADMIN')
   updatePermission(
+    @Req() request: AuthenticatedRequest,
     @Param('id') id: string,
     @Body(new ZodValidationPipe(updatePermissionSchema))
     updatePermissionDto: UpdatePermissionDto,
   ) {
-    return this.permissionsService.updatePermission(id, updatePermissionDto);
+    return this.permissionsService.updatePermission(
+      request.auth,
+      id,
+      updatePermissionDto,
+    );
   }
 
   @Delete(':id')
   @Roles('SUPER_ADMIN')
-  removePermission(@Param('id') id: string) {
-    return this.permissionsService.removePermission(id);
+  removePermission(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+  ) {
+    return this.permissionsService.removePermission(request.auth, id);
   }
 }

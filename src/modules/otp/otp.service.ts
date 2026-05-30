@@ -1,34 +1,23 @@
 import {
-  BadRequestException,
   HttpException,
   HttpStatus,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { createHash, randomBytes, randomInt, timingSafeEqual } from 'crypto';
+import { randomBytes, randomInt } from 'crypto';
 import { RateLimitService } from '../../shared/rate-limit/rate-limit.service';
 import { RedisService } from '../../infrastruktur/redis/redis.service';
 import { EmailService } from '../../infrastruktur/email/email.service';
 import { EmailTemplate } from '../../infrastruktur/email/email.template';
-type OtpRecord = {
-  recipient: string;
-  purpose: string;
-  hash: string;
-  attemptsLeft: number;
-};
-
-type RequestOtpParams = {
-  recipient: string;
-  purpose: string;
-  ipAddress?: string;
-};
-
-type VerifyOtpParams = {
-  token: string;
-  purpose: string;
-  otp: string;
-  ipAddress: string;
-};
+import type { OtpRecord, RequestOtpParams, VerifyOtpParams } from './otp.types';
+import {
+  hashValue,
+  normalizeOtp,
+  normalizePurpose,
+  normalizeRecipient,
+  parseOtpRecord,
+  safeHashEqual,
+} from './otp.utils';
 @Injectable()
 export class OtpService {
   private readonly otpTtlMs = 5 * 60 * 1000;
@@ -186,82 +175,4 @@ export class OtpService {
   private otpKey(purpose: string, recipient: string) {
     return `otp:${purpose}:${hashValue(recipient)}`;
   }
-}
-
-function normalizeRecipient(value: string) {
-  if (typeof value !== 'string') {
-    throw new BadRequestException('Recipient OTP wajib dikirim');
-  }
-
-  const recipient = value.trim().toLowerCase();
-
-  if (!recipient) {
-    throw new BadRequestException('Recipient OTP wajib dikirim');
-  }
-
-  return recipient;
-}
-
-function normalizePurpose(value: string) {
-  if (typeof value !== 'string') {
-    throw new BadRequestException('Purpose OTP wajib dikirim');
-  }
-
-  const purpose = value.trim().toLowerCase();
-
-  if (!/^[a-z0-9:_-]+$/.test(purpose)) {
-    throw new BadRequestException('Purpose OTP tidak valid');
-  }
-
-  return purpose;
-}
-
-function normalizeOtp(value: string) {
-  if (typeof value !== 'string') {
-    throw new BadRequestException('OTP wajib dikirim');
-  }
-
-  const otp = value.trim();
-
-  if (!/^\d{6}$/.test(otp)) {
-    throw new BadRequestException('OTP harus 6 digit');
-  }
-
-  return otp;
-}
-
-function parseOtpRecord(value: string): OtpRecord {
-  try {
-    const record = JSON.parse(value) as Partial<OtpRecord>;
-
-    if (typeof record.hash !== 'string') {
-      throw new Error('Invalid OTP hash');
-    }
-    const recipient = normalizeRecipient(record.recipient ?? '');
-    const purpose = normalizePurpose(record.purpose ?? '');
-    return {
-      recipient: recipient,
-      purpose: purpose,
-      hash: record.hash,
-      attemptsLeft:
-        typeof record.attemptsLeft === 'number' ? record.attemptsLeft : 0,
-    };
-  } catch {
-    throw new UnauthorizedException('OTP tidak valid atau sudah kedaluwarsa');
-  }
-}
-
-function hashValue(value: string) {
-  return createHash('sha256').update(value).digest('hex');
-}
-
-function safeHashEqual(left: string, right: string) {
-  const leftBuffer = Buffer.from(left, 'hex');
-  const rightBuffer = Buffer.from(right, 'hex');
-
-  if (leftBuffer.length !== rightBuffer.length) {
-    return false;
-  }
-
-  return timingSafeEqual(leftBuffer, rightBuffer);
 }

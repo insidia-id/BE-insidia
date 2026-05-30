@@ -43,12 +43,14 @@ export class UserController {
   @Get()
   findAll(
     @Req() request: AuthenticatedRequest,
-    @Query('scope') scope?: 'PLATFORM' | 'MITRA',
+    @Query('scope') scope?: 'INSIDIA' | 'MITRA',
     @Query('filter') filter?: 'all' | 'available' | 'deleted',
+    @Query('mitraId') mitraId?: string,
   ) {
     return this.userService.findAll({
-      scope: scope ?? 'PLATFORM',
+      scope: scope ?? 'INSIDIA',
       filter,
+      mitraId,
       auth: request.auth,
     });
   }
@@ -56,9 +58,15 @@ export class UserController {
   findOne(
     @Req() request: AuthenticatedRequest,
     @Param('id') id: string,
-    @Query('scope') scope?: 'PLATFORM' | 'MITRA',
+    @Query('scope') scope?: 'INSIDIA' | 'MITRA',
+    @Query('mitraId') mitraId?: string,
   ) {
-    return this.userService.findOne(id, request.auth, scope ?? 'PLATFORM');
+    return this.userService.findOne(
+      id,
+      request.auth,
+      scope ?? 'INSIDIA',
+      mitraId,
+    );
   }
 
   @Patch(':id')
@@ -77,8 +85,14 @@ export class UserController {
   remove(
     @Req() request: AuthenticatedRequest,
     @Param('id') id: string,
-    @Query('scope') scope?: 'PLATFORM' | 'MITRA',
+    @Query('scope') scope?: 'INSIDIA' | 'MITRA',
+    @Query('mitraId') mitraId?: string,
   ) {
-    return this.userService.remove(id, request.auth, scope ?? 'PLATFORM');
+    return this.userService.remove(
+      id,
+      request.auth,
+      scope ?? 'INSIDIA',
+      mitraId,
+    );
   }
 }

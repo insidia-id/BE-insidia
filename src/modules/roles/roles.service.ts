@@ -10,19 +10,32 @@ import { PermissionsRepository } from '../permissions/permissions.repository';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { RolesRepository } from './roles.repository';
+import { RolesPermissionService } from './roles.permission';
+import { AuthPayload } from '../auth/auth.types';
+import { RolePermissionCodes } from './roles.constants';
+import { permissionCodes } from '../permissions/permissions.constants';
 
 @Injectable()
 export class RolesService implements OnModuleInit {
   constructor(
     private readonly rolesRepository: RolesRepository,
     private readonly permissionsRepository: PermissionsRepository,
+    private readonly rolesPermissionService: RolesPermissionService,
   ) {}
 
   async onModuleInit() {
     await this.rolesRepository.ensureSystemRoles();
   }
 
-  async createRole(createRoleDto: CreateRoleDto) {
+  async createRole(auth: AuthPayload, createRoleDto: CreateRoleDto) {
+    const permissionCode =
+      createRoleDto.scope === 'MITRA'
+        ? RolePermissionCodes.createRoleMitra
+        : RolePermissionCodes.createRoleInsidia;
+    await this.rolesPermissionService.hasPermission(auth.sub, {
+      permission: permissionCode,
+      scope: createRoleDto.scope,
+    });
     const existing = await this.rolesRepository.findRoleByCode(
       createRoleDto.code,
     );
@@ -44,13 +57,30 @@ export class RolesService implements OnModuleInit {
     }
   }
 
-  findAllRoles(scope?: RoleScope, includeDeleted = false) {
-    console.log({ scope, includeDeleted });
+  async findAllRoles(
+    auth: AuthPayload,
+    scope: RoleScope,
+    includeDeleted = false,
+    mitraId?: string,
+  ) {
+    if (scope === 'MITRA') {
+      await this.rolesPermissionService.hasPermission(auth.sub, {
+        permission: RolePermissionCodes.viewRoleMitra,
+        scope,
+        mitraId,
+      });
+    } else {
+      await this.rolesPermissionService.hasPermission(auth.sub, {
+        permission: RolePermissionCodes.viewRoleInsidia,
+        scope,
+      });
+    }
+
     const res = this.rolesRepository.findRoles({
       scope,
       includeDeleted,
+      ...(scope === 'MITRA' && mitraId ? { mitraId } : {}),
     });
-    console.log('Found roles:', res);
     return res;
   }
 
@@ -107,7 +137,7 @@ export class RolesService implements OnModuleInit {
       throw new ConflictException('Role sistem tidak bisa dihapus');
     }
 
-    if (role._count.platformUsers > 0 || role._count.mitraUsers > 0) {
+    if (role._count.insidiaUsers > 0 || role._count.mitraUsers > 0) {
       throw new ConflictException('Role masih dipakai oleh user');
     }
 
@@ -128,7 +158,6 @@ export class RolesService implements OnModuleInit {
     assignRolePermissionsDto: AssignRolePermissionsDto,
   ) {
     const role = await this.ensureRoleExists(roleId);
-
     await this.ensurePermissionsMatchScope(
       role.scope,
       assignRolePermissionsDto.permissionIds,
@@ -141,17 +170,61 @@ export class RolesService implements OnModuleInit {
   }
 
   async replaceRolePermissions(
+    auth: AuthPayload,
+    roleId: string,
+    assignRolePermissionsDto: AssignRolePermissionsDto,
+  ) {
+    const role = await this.ensureRoleExists(roleId);
+    const isMitraRole = role.scope === 'MITRA';
+    await this.ensurePermissionsMatchScope(
+      role.scope,
+      assignRolePermissionsDto.permissionIds,
+    );
+    await this.rolesPermissionService.hasPermission(
+      auth.sub,
+      isMitraRole
+        ? {
+            permission: permissionCodes.manageMitraPermissions,
+            scope: 'MITRA',
+          }
+        : {
+            permission: permissionCodes.manageInsidiaPermissions,
+            scope: 'INSIDIA',
+          },
+    );
+    return this.rolesRepository.replaceRolePermissions(
+      roleId,
+      assignRolePermissionsDto.permissionIds,
+    );
+  }
+
+  async replaceMitraRolePermissions(
+    auth: AuthPayload,
+    mitraId: string,
     roleId: string,
     assignRolePermissionsDto: AssignRolePermissionsDto,
   ) {
     const role = await this.ensureRoleExists(roleId);
 
+    if (role.scope !== 'MITRA') {
+      throw new ConflictException(
+        'Permission per mitra hanya bisa diterapkan pada role scope MITRA',
+      );
+    }
+
+    await this.rolesPermissionService.hasPermission(auth.sub, {
+      permission: permissionCodes.manageMitraPermissions,
+      scope: 'MITRA',
+      requireMitraContext: true,
+      mitraId,
+    });
     await this.ensurePermissionsMatchScope(
       role.scope,
       assignRolePermissionsDto.permissionIds,
     );
 
-    return this.rolesRepository.replaceRolePermissions(
+    return this.rolesRepository.replaceMitraRolePermissions(
+      mitraId,
       roleId,
       assignRolePermissionsDto.permissionIds,
     );
@@ -203,7 +276,7 @@ export class RolesService implements OnModuleInit {
 
     const permissions =
       await this.permissionsRepository.findPermissionsByIds(permissionIds);
-
+    const uniquePermissionIds = new Set(permissions.map((p) => p.id));
     if (permissions.length !== permissionIds.length) {
       throw new NotFoundException('Sebagian permission tidak ditemukan');
     }

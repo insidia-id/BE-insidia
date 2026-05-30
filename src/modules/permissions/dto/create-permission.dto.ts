@@ -3,14 +3,21 @@ import { nullableTrimmedStringSchema } from '../../access-control/dto/shared-acc
 
 export const createPermissionSchema = z.object({
   name: z.string().trim().min(1, 'nama permission wajib diisi'),
-  scope: z.enum(['PLATFORM', 'MITRA'], 'ruang lingkup permission tidak valid'),
+
+  scope: z.enum(['INSIDIA', 'MITRA'], {
+    message: 'ruang lingkup permission tidak valid',
+  }),
+
+  code: z
+    .string()
+    .trim()
+    .min(1, 'kode permission wajib diisi')
+    .regex(
+      /^[a-z][a-z0-9]*\.[a-z][a-z0-9]*\.[a-z][a-z0-9]*$/,
+      'kode permission harus mengikuti format resource.action.scope, contoh: user.update.insidia',
+    ),
+
   description: nullableTrimmedStringSchema,
 });
-export function normalizePermissionCode(name: string) {
-  return name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, '')
-    .replace(/\s+/g, '.');
-}
+
 export type CreatePermissionDto = z.infer<typeof createPermissionSchema>;

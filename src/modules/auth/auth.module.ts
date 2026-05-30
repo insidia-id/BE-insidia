@@ -18,5 +18,6 @@ import { JwtTokenService } from './jwt-token.service';
     AccessTokenGuard,
     InternalTokenGuard,
   ],
+  exports: [AuthService, AuthRepository],
 })
 export class AuthModule {}

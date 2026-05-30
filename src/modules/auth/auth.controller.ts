@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { ZodValidationPipe } from '../../shared/zod/zod-validation.pipe';
 import { AuthService } from './auth.service';
@@ -68,6 +68,18 @@ export class AuthController {
   async logout(@Req() request: AuthenticatedRequest) {
     await this.authService.logoutCurrent(request.auth.sessionId);
     return { message: 'Logout berhasil' };
+  }
+
+  @UseGuards(AccessTokenGuard)
+  @Get('profile')
+  getProfile(@Req() request: AuthenticatedRequest) {
+    return this.authService.getProfile(request.auth);
+  }
+
+  @UseGuards(AccessTokenGuard)
+  @Get('session-status')
+  async getSessionStatus(@Req() req: AuthenticatedRequest) {
+    return await this.authService.getSessionStatus(req.auth);
   }
 }
 

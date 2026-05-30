@@ -8,10 +8,14 @@ import {
   Post,
   Put,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { RoleScope } from '@prisma/client';
-import { AccessTokenGuard } from '../../shared/guards/access-token.guard';
+import {
+  AccessTokenGuard,
+  type AuthenticatedRequest,
+} from '../../shared/guards/access-token.guard';
 import { Roles, RolesGuard } from '../../shared/guards/admin-access.guard';
 import { ZodValidationPipe } from '../../shared/zod/zod-validation.pipe';
 import {
@@ -30,19 +34,26 @@ export class RolesController {
   @Post()
   @Roles('SUPER_ADMIN')
   createRole(
+    @Req() request: AuthenticatedRequest,
     @Body(new ZodValidationPipe(createRoleSchema))
     createRoleDto: CreateRoleDto,
   ) {
-    return this.rolesService.createRole(createRoleDto);
+    return this.rolesService.createRole(request.auth, createRoleDto);
   }
 
   @Get()
-  @Roles('SUPER_ADMIN')
   findAllRoles(
-    @Query('scope') scope?: RoleScope,
+    @Req() request: AuthenticatedRequest,
+    @Query('scope') scope: RoleScope,
     @Query('includeDeleted') includeDeleted?: string,
+    @Query('mitraId') mitraId?: string,
   ) {
-    return this.rolesService.findAllRoles(scope, includeDeleted === 'true');
+    return this.rolesService.findAllRoles(
+      request.auth,
+      scope,
+      includeDeleted === 'true',
+      mitraId,
+    );
   }
 
   @Get(':roleId/permissions')
@@ -67,11 +78,29 @@ export class RolesController {
   @Put(':roleId/permissions')
   @Roles('SUPER_ADMIN')
   replaceRolePermissions(
+    @Req() request: AuthenticatedRequest,
     @Param('roleId') roleId: string,
     @Body(new ZodValidationPipe(assignRolePermissionsSchema))
     assignRolePermissionsDto: AssignRolePermissionsDto,
   ) {
     return this.rolesService.replaceRolePermissions(
+      request.auth,
+      roleId,
+      assignRolePermissionsDto,
+    );
+  }
+
+  @Put(':roleId/permissions/mitras/:mitraId')
+  replaceMitraRolePermissions(
+    @Req() request: AuthenticatedRequest,
+    @Param('mitraId') mitraId: string,
+    @Param('roleId') roleId: string,
+    @Body(new ZodValidationPipe(assignRolePermissionsSchema))
+    assignRolePermissionsDto: AssignRolePermissionsDto,
+  ) {
+    return this.rolesService.replaceMitraRolePermissions(
+      request.auth,
+      mitraId,
       roleId,
       assignRolePermissionsDto,
     );

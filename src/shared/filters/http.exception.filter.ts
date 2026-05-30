@@ -13,12 +13,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse();
 
     const isHttpException = exception instanceof HttpException;
-    console.log('Exception caught by HttpExceptionFilter:', {
-      message: isHttpException ? exception.message : String(exception),
-      stack: isHttpException ? exception.stack : undefined,
-      exception,
-      status: isHttpException ? exception.getStatus() : undefined,
-    });
+
     const status = isHttpException
       ? exception.getStatus()
       : HttpStatus.INTERNAL_SERVER_ERROR;
@@ -41,6 +36,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         message: Array.isArray(res.message)
           ? 'Data tidak valid'
           : (res.message ?? this.mapStatusToMessage(status)),
+        errors: res.errors,
         details: Array.isArray(res.message) ? res.message : res.details,
         status: status,
       };

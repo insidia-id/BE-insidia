@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { normalizeRoleCode } from '../../access-control/access-control.utils';
 import { RoleScope } from '@prisma/client';
 
-const userStatusValues = ['ACTIVE', 'SUSPENDED', 'BANNED'] as const;
+const userStatusValues = ['ACTIVE', 'BANNED'] as const;
 
 export const optionalNullableStringSchema = z.preprocess(
   (value) => (value === '' ? null : value),
@@ -20,8 +20,10 @@ export const createUserSchema = z.object({
   name: optionalNullableStringSchema,
   phone: optionalNullableStringSchema,
   role: roleCodeSchema.optional().default('USER'),
+  mitraRole: roleCodeSchema.optional(),
   scope: z.enum(RoleScope, 'ruang lingkup permission tidak valid'),
   status: z.enum(userStatusValues).optional().default('ACTIVE'),
+  mitraId: z.string().trim().min(1).optional(),
 });
 
 export type CreateUserDto = z.infer<typeof createUserSchema>;

@@ -7,7 +7,7 @@ import {
 export const createRoleSchema = z.object({
   name: z.string().trim().min(1),
   code: roleCodeSchema,
-  scope: z.enum(['PLATFORM', 'MITRA']),
+  scope: z.enum(['INSIDIA', 'MITRA']),
   description: nullableTrimmedStringSchema,
   isSystem: z.boolean().optional().default(false),
 });

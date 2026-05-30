@@ -2,6 +2,7 @@ import { forwardRef, Module } from '@nestjs/common';
 import { PrismaModule } from '../../infrastruktur/prisma/prisma.module';
 import { AccessTokenGuard } from '../../shared/guards/access-token.guard';
 import { RolesGuard } from '../../shared/guards/admin-access.guard';
+import { AuthModule } from '../auth/auth.module';
 import { JwtTokenService } from '../auth/jwt-token.service';
 import { PermissionsModule } from '../permissions/permissions.module';
 import { RolesController } from './roles.controller';
@@ -11,7 +12,12 @@ import { RolesPermissionService } from './roles.permission';
 import { UserModule } from '../user/user.module';
 
 @Module({
-  imports: [PrismaModule, PermissionsModule, forwardRef(() => UserModule)],
+  imports: [
+    PrismaModule,
+    forwardRef(() => PermissionsModule),
+    AuthModule,
+    forwardRef(() => UserModule),
+  ],
   controllers: [RolesController],
   providers: [
     RolesService,

@@ -4,23 +4,27 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, RoleScope } from '@prisma/client';
-import {
-  CreatePermissionDto,
-  normalizePermissionCode,
-} from './dto/create-permission.dto';
+import { CreatePermissionDto } from './dto/create-permission.dto';
 import { UpdatePermissionDto } from './dto/update-permission.dto';
 import { PermissionsRepository } from './permissions.repository';
+import { RolesPermissionService } from '../roles/roles.permission';
+import { AuthPayload } from '../auth/auth.types';
+import { PermissionsPolicy } from './permissions.policy';
+import { permissionCodes } from './permissions.constants';
 
 @Injectable()
 export class PermissionsService {
-  constructor(private readonly permissionsRepository: PermissionsRepository) {}
+  constructor(
+    private readonly permissionsRepository: PermissionsRepository,
+    private readonly rolesPermissionService: RolesPermissionService,
+    private readonly permissionsPolicy: PermissionsPolicy,
+  ) {}
 
   async createPermission(createPermissionDto: CreatePermissionDto) {
-    const code = normalizePermissionCode(createPermissionDto.name);
     try {
       return await this.permissionsRepository.createPermission({
         name: createPermissionDto.name,
-        code: code,
+        code: createPermissionDto.code,
         scope: createPermissionDto.scope,
         description: createPermissionDto.description ?? null,
       });
@@ -29,11 +33,33 @@ export class PermissionsService {
     }
   }
 
-  findAllPermissions(scope?: RoleScope) {
+  async findAllPermissions(
+    auth: AuthPayload,
+    scope: RoleScope,
+    mitraId?: string,
+  ) {
+    scope === 'MITRA'
+      ? await this.rolesPermissionService.hasAnyPermission(auth.sub, {
+          permission: [
+            permissionCodes.viewMitraPermissions,
+            permissionCodes.manageMitraPermissions,
+          ],
+          scope,
+          mitraId,
+        })
+      : await this.rolesPermissionService.hasPermission(auth.sub, {
+          permission: permissionCodes.viewInsidiaPermissions,
+          scope,
+        });
     return this.permissionsRepository.findPermissions(scope);
   }
 
-  async findPermissionById(id: string) {
+  async findPermissionById(auth: AuthPayload, id: string) {
+    await this.rolesPermissionService.hasPermission(auth.sub, {
+      permission: permissionCodes.viewMitraPermissions,
+      scope: 'MITRA',
+    });
+
     const permission = await this.permissionsRepository.findPermissionById(id);
 
     if (!permission) {
@@ -43,15 +69,19 @@ export class PermissionsService {
     return permission;
   }
 
-  async updatePermission(id: string, updatePermissionDto: UpdatePermissionDto) {
-    await this.findPermissionById(id);
+  async updatePermission(
+    auth: AuthPayload,
+    id: string,
+    updatePermissionDto: UpdatePermissionDto,
+  ) {
+    await this.findPermissionById(auth, id);
 
     try {
       return await this.permissionsRepository.updatePermission(id, {
         ...(updatePermissionDto.name !== undefined
           ? {
               name: updatePermissionDto.name,
-              code: normalizePermissionCode(updatePermissionDto.name),
+              code: updatePermissionDto.code,
             }
           : {}),
         ...(updatePermissionDto.scope !== undefined
@@ -66,8 +96,8 @@ export class PermissionsService {
     }
   }
 
-  async removePermission(id: string) {
-    await this.findPermissionById(id);
+  async removePermission(auth: AuthPayload, id: string) {
+    await this.findPermissionById(auth, id);
 
     try {
       await this.permissionsRepository.deletePermission(id);
@@ -77,16 +107,7 @@ export class PermissionsService {
 
     return { message: 'Permission berhasil dihapus' };
   }
-  async hasPermission(roleId: string, permissionId: string) {
-    const rolePermission = await this.permissionsRepository.hasPermission(
-      roleId,
-      permissionId,
-    );
-    if (!rolePermission) {
-      throw new NotFoundException('Permission tidak ditemukan untuk role ini');
-    }
-    return { message: 'Role memiliki permission ini' };
-  }
+
   private handlePrismaError(error: unknown): never {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&

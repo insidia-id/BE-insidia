@@ -19,7 +19,23 @@ const rolePermissionSelect = {
     },
   },
 } satisfies Prisma.RolePermissionSelect;
-
+const mitraRolePermissionSelect = {
+  id: true,
+  mitraId: true,
+  roleId: true,
+  permissionId: true,
+  permission: {
+    select: {
+      id: true,
+      name: true,
+      code: true,
+      scope: true,
+      description: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  },
+} satisfies Prisma.MitraRolePermissionSelect;
 const roleSelect = {
   id: true,
   name: true,
@@ -36,7 +52,7 @@ const roleSelect = {
   _count: {
     select: {
       permissions: true,
-      platformUsers: true,
+      insidiaUsers: true,
       mitraUsers: true,
     },
   },
@@ -77,19 +93,39 @@ export class RolesRepository {
     });
   }
 
-  findRoles(params?: {
+  async findRoles(params?: {
     scope?: Prisma.RoleWhereInput['scope'];
     includeDeleted?: boolean;
+    mitraId?: string;
   }) {
-    const { scope, includeDeleted = false } = params ?? {};
+    const { mitraId } = params ?? {};
+    const roles = await this.findRolesByScope(params);
 
-    return this.prisma.role.findMany({
-      where: {
-        scope,
-        ...(includeDeleted ? {} : { deletedAt: null }),
-      },
-      orderBy: [{ scope: 'asc' }, { name: 'asc' }],
-      select: roleSelect,
+    if (!mitraId) {
+      return roles;
+    }
+
+    return roles.map((role) => {
+      const { mitraRolePermissions, ...rest } = role as typeof role & {
+        mitraRolePermissions: Array<any>;
+      };
+      const scopedPermissions = mitraRolePermissions as Array<any>;
+
+      return {
+        ...rest,
+        permissions: scopedPermissions.map(
+          ({ id, roleId, permissionId, permission }) => ({
+            id,
+            roleId,
+            permissionId,
+            permission,
+          }),
+        ),
+        _count: {
+          ...role._count,
+          permissions: scopedPermissions.length,
+        },
+      };
     });
   }
 
@@ -126,7 +162,17 @@ export class RolesRepository {
       select: rolePermissionSelect,
     });
   }
-
+  findMitraRolePermissions(roleId: string, mitraId?: string) {
+    return this.prisma.mitraRolePermission.findMany({
+      where: { mitraId, roleId },
+      orderBy: {
+        permission: {
+          name: 'asc',
+        },
+      },
+      select: mitraRolePermissionSelect,
+    });
+  }
   async addRolePermissions(roleId: string, permissionIds: string[]) {
     if (permissionIds.length === 0) {
       return this.findRolePermissions(roleId);
@@ -184,6 +230,53 @@ export class RolesRepository {
     });
   }
 
+  async replaceMitraRolePermissions(
+    mitraId: string,
+    roleId: string,
+    permissionIds: string[],
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.mitraRolePermission.deleteMany({
+        where: {
+          mitraId,
+          roleId,
+          ...(permissionIds.length > 0
+            ? {
+                permissionId: {
+                  notIn: permissionIds,
+                },
+              }
+            : {}),
+        },
+      });
+
+      if (permissionIds.length > 0) {
+        await tx.mitraRolePermission.createMany({
+          data: permissionIds.map((permissionId) => ({
+            mitraId,
+            roleId,
+            permissionId,
+          })),
+          skipDuplicates: true,
+        });
+      } else {
+        await tx.mitraRolePermission.deleteMany({
+          where: { mitraId, roleId },
+        });
+      }
+
+      return tx.mitraRolePermission.findMany({
+        where: { mitraId, roleId },
+        orderBy: {
+          permission: {
+            name: 'asc',
+          },
+        },
+        select: mitraRolePermissionSelect,
+      });
+    });
+  }
+
   async removeRolePermission(roleId: string, permissionId: string) {
     const result = await this.prisma.rolePermission.deleteMany({
       where: {
@@ -193,5 +286,37 @@ export class RolesRepository {
     });
 
     return result.count > 0;
+  }
+
+  private findRolesByScope(params?: {
+    scope?: Prisma.RoleWhereInput['scope'];
+    includeDeleted?: boolean;
+    mitraId?: string;
+  }) {
+    const { scope, includeDeleted = false, mitraId } = params ?? {};
+
+    return this.prisma.role.findMany({
+      where: {
+        scope,
+        ...(includeDeleted ? {} : { deletedAt: null }),
+      },
+      orderBy: [{ scope: 'asc' }, { name: 'asc' }],
+      select: {
+        ...roleSelect,
+        ...(mitraId
+          ? {
+              mitraRolePermissions: {
+                where: { mitraId },
+                orderBy: {
+                  permission: {
+                    name: 'asc',
+                  },
+                },
+                select: mitraRolePermissionSelect,
+              },
+            }
+          : {}),
+      },
+    });
   }
 }

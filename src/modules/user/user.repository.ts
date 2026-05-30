@@ -28,11 +28,11 @@ export class UserRepository {
     }
   }
 
-  findAllActive(scope: RoleScope = RoleScope.PLATFORM) {
+  findAllActive(scope: RoleScope = RoleScope.INSIDIA, mitraId?: string) {
     return this.prisma.user.findMany({
       where: {
         deletedAt: null,
-        ...getUserRoleScopeWhere(scope),
+        ...getUserRoleScopeWhere(scope, mitraId),
       },
       orderBy: {
         createdAt: 'desc',
@@ -77,18 +77,25 @@ export class UserRepository {
       select: adminUserSelect,
     });
   }
-  findRoleByUserId(userId: string) {
+  findRoleByUserId(userId: string, mitraId?: string) {
     return this.prisma.user.findUnique({
       where: { id: userId },
       select: {
-        platformRole: userRole.platformRole,
-        mitraRoles: userRole.mitraRoles,
+        insidiaRole: userRole.insidiaRole,
+        mitraRoles: mitraId
+          ? {
+              where: {
+                mitraId,
+              },
+              select: userRole.mitraRoles.select,
+            }
+          : userRole.mitraRoles,
       },
     });
   }
-  findAll(scope: RoleScope = RoleScope.PLATFORM) {
+  findAll(scope: RoleScope = RoleScope.INSIDIA, mitraId?: string) {
     return this.prisma.user.findMany({
-      where: getUserRoleScopeWhere(scope),
+      where: getUserRoleScopeWhere(scope, mitraId),
       orderBy: {
         createdAt: 'desc',
       },
@@ -96,11 +103,11 @@ export class UserRepository {
     });
   }
 
-  findAllDeleted(scope: RoleScope = RoleScope.PLATFORM) {
+  findAllDeleted(scope: RoleScope = RoleScope.INSIDIA, mitraId?: string) {
     return this.prisma.user.findMany({
       where: {
         deletedAt: { not: null },
-        ...getUserRoleScopeWhere(scope),
+        ...getUserRoleScopeWhere(scope, mitraId),
       },
       orderBy: {
         createdAt: 'desc',
@@ -109,12 +116,16 @@ export class UserRepository {
     });
   }
 
-  findActiveById(id: string, scope: RoleScope = RoleScope.PLATFORM) {
+  findActiveById(
+    id: string,
+    scope: RoleScope = RoleScope.INSIDIA,
+    mitraId?: string,
+  ) {
     return this.prisma.user.findFirst({
       where: {
         id,
         deletedAt: null,
-        ...getUserRoleScopeWhere(scope),
+        ...getUserRoleScopeWhere(scope, mitraId),
       },
       select: adminUserSelect,
     });
@@ -200,7 +211,7 @@ export class UserRepository {
       where: {
         deletedAt: null,
         status: UserStatus.ACTIVE,
-        platformRole: {
+        insidiaRole: {
           is: {
             role: {
               code: {

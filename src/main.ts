@@ -5,17 +5,21 @@ import { ResponseInterceptor } from './shared/interceptors/response.interceptors
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
   app.useGlobalInterceptors(new ResponseInterceptor());
   app.useGlobalFilters(new HttpExceptionFilter());
+
   app.enableCors({
     origin: [
       'https://fe-insidia.vercel.app',
+      'http://127.0.0.1:3000',
       'http://localhost:3000',
       'http://localhost:5173',
     ],
     credentials: true,
   });
-  await app.listen(process.env.PORT ?? 5000);
+
+  await app.listen(process.env.PORT ?? 5000, '0.0.0.0');
 }
 
 bootstrap();

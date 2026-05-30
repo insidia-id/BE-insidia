@@ -1,8 +1,8 @@
 import { Prisma } from '@prisma/client';
-import { withPlatformAccess } from '../access-control/access-control.utils';
+import { withInsidiaAccess } from '../access-control/access-control.utils';
 import type { CreateUserDto } from './dto/create-user.dto';
 import type { UpdateUserDto } from './dto/update-user.dto';
-
+import type { insidiaRole } from './user.types';
 export function mapCreateUserData(
   dto: CreateUserDto,
   actorId: string | undefined,
@@ -34,9 +34,9 @@ export function normalizeEmail(email: string) {
 }
 
 export function serializeUserWithAccess<
-  T extends Parameters<typeof withPlatformAccess>[0],
+  T extends Parameters<typeof withInsidiaAccess>[0],
 >(user: T) {
-  return withPlatformAccess(user);
+  return withInsidiaAccess(user);
 }
 
 function assignCreateUserFields(
@@ -49,7 +49,7 @@ function assignCreateUserFields(
   data.name = dto.name ?? null;
   data.phone = dto.phone ?? null;
   data.status = dto.status ?? 'ACTIVE';
-  data.platformRole = {
+  data.insidiaRole = {
     create: {
       role: {
         connect: {
@@ -58,6 +58,22 @@ function assignCreateUserFields(
       },
     },
   };
+  if (dto.scope === 'MITRA') {
+    data.mitraRoles = {
+      create: {
+        role: {
+          connect: {
+            code: dto.mitraRole,
+          },
+        },
+        mitra: {
+          connect: {
+            id: dto.mitraId,
+          },
+        },
+      },
+    };
+  }
 }
 
 function assignUpdateUserFields(
@@ -74,7 +90,7 @@ function assignUpdateUserFields(
   if (dto.status !== undefined) data.status = dto.status;
 
   if (dto.role !== undefined) {
-    data.platformRole = {
+    data.insidiaRole = {
       upsert: {
         create: {
           role: {
@@ -93,7 +109,25 @@ function assignUpdateUserFields(
       },
     };
   }
-
+  if (dto.mitraRole !== undefined && dto.mitraId !== undefined) {
+    data.mitraRoles = {
+      upsert: {
+        create: {
+          mitra: {
+            connect: { id: dto.mitraId },
+          },
+          role: {
+            connect: { code: dto.mitraRole },
+          },
+        },
+        update: {
+          role: {
+            connect: { code: dto.mitraRole },
+          },
+        },
+      },
+    };
+  }
   if (dto.bio !== undefined) data.bio = dto.bio;
   if (dto.websiteUrl !== undefined) data.websiteUrl = dto.websiteUrl;
 

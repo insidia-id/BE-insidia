@@ -8,16 +8,19 @@ datasource db {
 
 enum UserStatus {
   ACTIVE
-  SUSPENDED
   BANNED
 }
 enum RoleScope {
-  PLATFORM
+  INSIDIA
   MITRA
 }
 enum MitraType {
   KAMPUS
   SEKOLAH
+}
+enum AcademicStatus {
+  ACTIVE
+  INACTIVE
 }
 enum LoginEventProvider {
   GOOGLE
@@ -167,7 +170,7 @@ model User {
   image           String?
   imagePublicId   String?
 
-  platformRole UserPlatformRole?
+  insidiaRole UserInsidiaRole?
   status UserStatus @default(ACTIVE)
 
   bio         String?
@@ -181,7 +184,7 @@ model User {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
- mitraRoles   UserMitraRole[]
+ mitraRoles   UserMitraRole?
   accounts     Account[]
   authSessions AuthSession[]
   loginEvents  LoginEvent[]
@@ -191,6 +194,10 @@ model User {
   muridProfile    MuridProfile?
   waliProfile     WaliMuridProfile?
   academicProfile AcademicProfile?
+  waliClassGroups ClassGroup[] @relation("ClassGroupHomeroomTeacher")
+  classGroupCoursesAsTeacher ClassGroupCourse[] @relation("ClassGroupCourseTeacher")
+  classGroupStudents ClassGroupStudent[] @relation("ClassGroupStudentUser")
+  learningMaterialsUploaded LearningMaterial[] @relation("LearningMaterialTeacher")
 
   coursesCreated Course[] @relation("CourseCreator")
 
@@ -236,8 +243,9 @@ model Role {
   deletedAt DateTime?
 
   permissions   RolePermission[]
-  platformUsers UserPlatformRole[]
+  insidiaUsers UserInsidiaRole[]
   mitraUsers    UserMitraRole[]
+  mitraRolePermissions MitraRolePermission[]
 
   @@index([scope])
   @@index([deletedAt])
@@ -254,6 +262,7 @@ model Permission {
   updatedAt DateTime @updatedAt
 
   roles RolePermission[]
+  mitraRolePermissions MitraRolePermission[]
 
   @@index([scope])
 }
@@ -270,7 +279,22 @@ model RolePermission {
   @@index([roleId])
   @@index([permissionId])
 }
-model UserPlatformRole {
+model MitraRolePermission {
+  id           String @id @default(cuid())
+  mitraId      String
+  roleId       String
+  permissionId String
+
+  mitra      Mitra      @relation(fields: [mitraId], references: [id], onDelete: Cascade)
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([mitraId, roleId, permissionId])
+  @@index([mitraId])
+  @@index([roleId])
+  @@index([permissionId])
+}
+model UserInsidiaRole {
   id     String @id @default(cuid())
   userId String @unique
   roleId String
@@ -288,19 +312,29 @@ model Mitra {
   name      String
   slug      String    @unique
   type      MitraType
-
+  status   AcademicStatus @default(ACTIVE)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
+  mitraRolePermissions MitraRolePermission[]
   members   UserMitraRole[]
-
+  academicYears AcademicYear[]
+  semesters Semester[]
+  curricula Curriculum[]
+  classes AcademicClass[]
+  classGroups ClassGroup[]
+  courses Course[]
+  classGroupCourses ClassGroupCourse[]
+  classGroupStudents ClassGroupStudent[]
+  learningMaterials LearningMaterial[]
+  
   @@index([type])
   @@index([deletedAt])
 }
 model UserMitraRole {
   id      String @id @default(cuid())
-  userId  String
+  userId  String @unique
   mitraId String
   roleId  String
 
@@ -311,7 +345,7 @@ model UserMitraRole {
   mitra Mitra @relation(fields: [mitraId], references: [id], onDelete: Cascade)
   role  Role  @relation(fields: [roleId], references: [id], onDelete: Restrict)
 
-  @@unique([userId, mitraId, roleId])
+  @@unique([userId, mitraId])
   @@index([userId])
   @@index([mitraId])
   @@index([roleId])
@@ -334,6 +368,227 @@ model Account {
 
   @@id([provider, providerAccountId])
   @@index([userId])
+}
+
+model AcademicYear {
+  id        String         @id @default(cuid())
+  mitraId   String
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  status    AcademicStatus @default(ACTIVE)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  mitra             Mitra               @relation(fields: [mitraId], references: [id], onDelete: Cascade)
+  semesters         Semester[]
+  classes           AcademicClass[]
+  classGroupCourses ClassGroupCourse[]
+  classGroupStudents ClassGroupStudent[]
+
+  @@index([mitraId])
+  @@index([status])
+  @@index([deletedAt])
+  @@unique([mitraId, name])
+}
+
+model Semester {
+  id             String         @id @default(cuid())
+  mitraId        String
+  academicYearId String
+  name           String
+  startDate      DateTime
+  endDate        DateTime
+  status         AcademicStatus @default(ACTIVE)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  mitra             Mitra               @relation(fields: [mitraId], references: [id], onDelete: Cascade)
+  academicYear      AcademicYear        @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  classes           AcademicClass[]
+  classGroupCourses ClassGroupCourse[]
+  classGroupStudents ClassGroupStudent[]
+
+  @@index([mitraId])
+  @@index([academicYearId])
+  @@index([status])
+  @@index([deletedAt])
+  @@unique([academicYearId, name])
+}
+
+model Curriculum {
+  id          String         @id @default(cuid())
+  mitraId     String
+  name        String
+  code        String?
+  description String?        @db.Text
+  status      AcademicStatus @default(ACTIVE)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  mitra   Mitra           @relation(fields: [mitraId], references: [id], onDelete: Cascade)
+  courses Course[]
+  classes AcademicClass[]
+
+  @@index([mitraId])
+  @@index([status])
+  @@index([deletedAt])
+  @@unique([mitraId, name])
+  @@unique([mitraId, code])
+}
+
+model AcademicClass {
+  id             String         @id @default(cuid())
+  mitraId        String
+  academicYearId String
+  semesterId     String
+  curriculumId   String
+  name           String
+  level          String
+  status         AcademicStatus @default(ACTIVE)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  mitra        Mitra        @relation(fields: [mitraId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  semester     Semester     @relation(fields: [semesterId], references: [id], onDelete: Restrict)
+  curriculum   Curriculum   @relation(fields: [curriculumId], references: [id], onDelete: Restrict)
+  classGroups  ClassGroup[]
+
+  @@index([mitraId])
+  @@index([academicYearId])
+  @@index([semesterId])
+  @@index([curriculumId])
+  @@index([status])
+  @@index([deletedAt])
+  @@unique([mitraId, academicYearId, semesterId, name])
+}
+
+model ClassGroup {
+  id           String         @id @default(cuid())
+  mitraId      String
+  classId      String
+  name         String
+  waliKelasId  String?
+  status       AcademicStatus @default(ACTIVE)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  mitra            Mitra               @relation(fields: [mitraId], references: [id], onDelete: Cascade)
+  academicClass    AcademicClass       @relation(fields: [classId], references: [id], onDelete: Cascade)
+  waliKelas        User?               @relation("ClassGroupHomeroomTeacher", fields: [waliKelasId], references: [id], onDelete: SetNull)
+  classGroupCourses ClassGroupCourse[]
+  classGroupStudents ClassGroupStudent[]
+  learningMaterials LearningMaterial[]
+
+  @@index([mitraId])
+  @@index([classId])
+  @@index([waliKelasId])
+  @@index([status])
+  @@index([deletedAt])
+  @@unique([classId, name])
+}
+
+model ClassGroupCourse {
+  id             String         @id @default(cuid())
+  mitraId        String
+  classGroupId   String
+  courseId       String
+  teacherId      String
+  academicYearId String
+  semesterId     String
+  status         AcademicStatus @default(ACTIVE)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  mitra        Mitra        @relation(fields: [mitraId], references: [id], onDelete: Cascade)
+  classGroup   ClassGroup   @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+  course       Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  teacher      User         @relation("ClassGroupCourseTeacher", fields: [teacherId], references: [id], onDelete: Restrict)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  semester     Semester     @relation(fields: [semesterId], references: [id], onDelete: Restrict)
+
+  @@index([mitraId])
+  @@index([classGroupId])
+  @@index([courseId])
+  @@index([teacherId])
+  @@index([academicYearId])
+  @@index([semesterId])
+  @@index([status])
+  @@index([deletedAt])
+  @@unique([classGroupId, courseId, academicYearId, semesterId])
+}
+
+model ClassGroupStudent {
+  id             String         @id @default(cuid())
+  mitraId        String
+  classGroupId   String
+  studentId      String
+  academicYearId String
+  semesterId     String
+  status         AcademicStatus @default(ACTIVE)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  mitra        Mitra        @relation(fields: [mitraId], references: [id], onDelete: Cascade)
+  classGroup   ClassGroup   @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+  student      User         @relation("ClassGroupStudentUser", fields: [studentId], references: [id], onDelete: Restrict)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  semester     Semester     @relation(fields: [semesterId], references: [id], onDelete: Restrict)
+
+  @@index([mitraId])
+  @@index([classGroupId])
+  @@index([studentId])
+  @@index([academicYearId])
+  @@index([semesterId])
+  @@index([status])
+  @@index([deletedAt])
+  @@unique([classGroupId, studentId, academicYearId, semesterId])
+}
+
+model LearningMaterial {
+  id           String         @id @default(cuid())
+  mitraId      String
+  classGroupId String
+  courseId     String
+  teacherId    String
+  title        String
+  description  String?        @db.Text
+  filePath     String
+  fileType     String
+  fileSize     Int
+  uploadedAt   DateTime       @default(now())
+  status       AcademicStatus @default(ACTIVE)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  mitra      Mitra      @relation(fields: [mitraId], references: [id], onDelete: Cascade)
+  classGroup ClassGroup @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+  course     Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  teacher    User       @relation("LearningMaterialTeacher", fields: [teacherId], references: [id], onDelete: Restrict)
+
+  @@index([mitraId])
+  @@index([classGroupId])
+  @@index([courseId])
+  @@index([teacherId])
+  @@index([status])
+  @@index([deletedAt])
 }
 
 model AuthSession {
@@ -462,20 +717,24 @@ model Category {
 model Course {
   id        String @id @default(cuid())
   creatorId String
+  mitraId String?
+  curriculumId String?
 
   title       String
   slug        String  @unique
+  code        String?
   subtitle    String?
   description String? @db.Text
 
   status CourseStatus @default(DRAFT)
+  academicStatus AcademicStatus @default(ACTIVE)
   level  CourseLevel  @default(ALL_LEVEL)
 
   categoryId String?
   language   String  @default("id")
 
-  price     Decimal  @db.Decimal(12, 2)
-  salePrice Decimal? @db.Decimal(12, 2)
+  price Decimal @default(0) @db.Decimal(12, 2)
+salePrice Decimal? @db.Decimal(12, 2)
   isFree    Boolean  @default(false)
 
   requirements String[] @default([])
@@ -488,17 +747,21 @@ model Course {
   publishedAt  DateTime?
   rejectedAt   DateTime?
   rejectReason String?
-
+ scope RoleScope @default(INSIDIA)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
   creator  User      @relation("CourseCreator", fields: [creatorId], references: [id], onDelete: Restrict)
+  mitra Mitra? @relation(fields: [mitraId], references: [id], onDelete: SetNull)
+  curriculum Curriculum? @relation(fields: [curriculumId], references: [id], onDelete: SetNull)
   category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
   modules Module[]
   lessons Lesson[]
   media   Media[]
+  classGroupCourses ClassGroupCourse[]
+  learningMaterials LearningMaterial[]
 
   orderItems  OrderItem[]
   enrollments Enrollment[]
@@ -509,9 +772,13 @@ model Course {
   certificates Certificate[]
 
   @@index([creatorId])
+  @@index([mitraId])
+  @@index([curriculumId])
   @@index([categoryId])
   @@index([status])
+  @@index([academicStatus])
   @@index([deletedAt])
+  @@unique([mitraId, code])
 }
 
 model Module {
@@ -529,7 +796,7 @@ model Module {
   lessons Lesson[]
   media   Media[]
 
-  @@index([courseId, sortOrder])
+@@unique([courseId, sortOrder])
 }
 
 model Lesson {
@@ -542,9 +809,8 @@ model Lesson {
   description String?
   type        LessonType @default(VIDEO)
 
-  content     String? @db.Text
-  videoUrl    String?
-  durationSec Int?
+contentJson Json?
+contentHtml String? @db.Text
 
   sortOrder   Int     @default(0)
   isPreview   Boolean @default(false)
@@ -564,7 +830,7 @@ model Lesson {
 
   @@unique([courseId, slug])
   @@index([courseId])
-  @@index([moduleId, sortOrder])
+ @@unique([moduleId, sortOrder])
   @@index([deletedAt])
 }
 

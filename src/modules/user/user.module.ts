@@ -7,9 +7,10 @@ import { RolesGuard } from '../../shared/guards/admin-access.guard';
 import { UserRepository } from './user.repository';
 import { UserPolicy } from './user.Policy';
 import { RolesModule } from '../roles/roles.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [PrismaModule, forwardRef(() => RolesModule)],
+  imports: [PrismaModule, forwardRef(() => RolesModule), AuthModule],
   controllers: [UserController],
   providers: [
     UserService,

@@ -1,20 +1,27 @@
 import { Prisma, RoleScope } from '@prisma/client';
-import id from 'zod/v4/locales/id.js';
 
 export const adminRoles = ['SUPER_ADMIN', 'ADMIN'] as const;
 export const adminRoleSet = new Set<string>(adminRoles);
+export const adminAllowedTargetRoleCodes = new Set(['USER', 'MENTOR']);
+export const AkademikAllowedTargetRoleCodes = new Set([
+  'MURID',
+  'GURU',
+  'WALI_MURID',
+  'USER',
+]);
 export type UserFilter = 'all' | 'available' | 'deleted';
-export type Scope = 'PLATFORM' | 'MITRA';
+export type Scope = 'INSIDIA' | 'MITRA';
 
 export function getUserRoleScopeWhere(
-  scope: RoleScope = RoleScope.PLATFORM,
+  scope: RoleScope = RoleScope.INSIDIA,
+  mitraId?: string,
 ): Prisma.UserWhereInput {
-  if (scope === RoleScope.PLATFORM) {
+  if (scope === RoleScope.INSIDIA) {
     return {
-      platformRole: {
+      insidiaRole: {
         is: {
           role: {
-            scope: RoleScope.PLATFORM,
+            scope: RoleScope.INSIDIA,
           },
         },
       },
@@ -23,7 +30,8 @@ export function getUserRoleScopeWhere(
 
   return {
     mitraRoles: {
-      some: {
+      is: {
+        ...(mitraId ? { mitraId } : {}),
         role: {
           scope,
         },
@@ -50,9 +58,9 @@ export function getUserRoleWhereByScope({
       : {}),
   };
 
-  if (scope === RoleScope.PLATFORM) {
+  if (scope === RoleScope.INSIDIA) {
     return {
-      platformRole: {
+      insidiaRole: {
         is: {
           role: roleWhere,
         },
@@ -62,14 +70,14 @@ export function getUserRoleWhereByScope({
 
   return {
     mitraRoles: {
-      some: {
+      is: {
         role: roleWhere,
       },
     },
   };
 }
 export const userRole = {
-  platformRole: {
+  insidiaRole: {
     select: {
       role: {
         select: {
@@ -81,6 +89,7 @@ export const userRole = {
   },
   mitraRoles: {
     select: {
+      mitraId: true,
       role: {
         select: {
           id: true,
@@ -90,38 +99,32 @@ export const userRole = {
     },
   },
 };
-const permissionSummarySelect = {
-  id: true,
-  name: true,
-  code: true,
-  scope: true,
-  description: true,
-} satisfies Prisma.PermissionSelect;
 
-const roleSummarySelect = {
-  id: true,
-  name: true,
-  code: true,
-  scope: true,
-  description: true,
-  isSystem: true,
-  permissions: {
-    select: {
-      permission: {
-        select: permissionSummarySelect,
-      },
-    },
-  },
-} satisfies Prisma.RoleSelect;
-
-const userPlatformRoleSelect = {
+const userInsidiaRoleSelect = {
   id: true,
   roleId: true,
   role: {
-    select: roleSummarySelect,
+    select: {
+      id: true,
+      name: true,
+      code: true,
+      scope: true,
+    },
   },
-} satisfies Prisma.UserPlatformRoleSelect;
-
+} satisfies Prisma.UserInsidiaRoleSelect;
+const userMitraRoleSelect = {
+  id: true,
+  roleId: true,
+  mitraId: true,
+  role: {
+    select: {
+      id: true,
+      name: true,
+      code: true,
+      scope: true,
+    },
+  },
+} satisfies Prisma.UserMitraRoleSelect;
 export const adminUserListSelect = {
   id: true,
   name: true,
@@ -131,7 +134,7 @@ export const adminUserListSelect = {
   createdAt: true,
   updatedAt: true,
   deletedAt: true,
-  platformRole: {
+  insidiaRole: {
     select: {
       id: true,
       roleId: true,
@@ -177,8 +180,11 @@ export const adminUserSelect = {
   createdAt: true,
   updatedAt: true,
   deletedAt: true,
-  platformRole: {
-    select: userPlatformRoleSelect,
+  insidiaRole: {
+    select: userInsidiaRoleSelect,
+  },
+  mitraRoles: {
+    select: userMitraRoleSelect,
   },
 } satisfies Prisma.UserSelect;
 
@@ -188,11 +194,26 @@ export const adminUserCreatedSelect = {
   email: true,
   status: true,
   createdAt: true,
-  platformRole: {
-    select: userPlatformRoleSelect,
+  insidiaRole: {
+    select: userInsidiaRoleSelect,
+  },
+  mitraRoles: {
+    select: userMitraRoleSelect,
   },
 } satisfies Prisma.UserSelect;
 
 export type AdminUser = Prisma.UserGetPayload<{
   select: typeof adminUserSelect;
 }>;
+
+export const userPermisionsCode = {
+  createInsidiaUser: 'user.create.insidia',
+  createMitraUser: 'user.create.mitra',
+  viewInsidiaUser: 'user.view.insidia',
+  viewMitraUser: 'user.view.mitra',
+
+  updateInsidiaUser: 'user.update.insidia',
+  updateMitraUser: 'user.update.mitra',
+  deleteInsidiaUser: 'user.delete.insidia',
+  deleteMitraUser: 'user.delete.mitra',
+} as const;

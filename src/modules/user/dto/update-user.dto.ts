@@ -4,7 +4,7 @@ import {
   roleCodeSchema,
 } from './create-user.dto';
 
-const userStatusValues = ['ACTIVE', 'SUSPENDED', 'BANNED'] as const;
+const userStatusValues = ['ACTIVE', 'BANNED'] as const;
 
 const socialLinksValueSchema = z
   .object({
@@ -25,9 +25,11 @@ export const updateUserSchema = z.object({
   name: optionalNullableStringSchema,
   phone: optionalNullableStringSchema,
   role: roleCodeSchema.optional(),
+  mitraRole: z.enum(['AKADEMIK', 'MURID', 'GURU', 'WALI_MURID']).optional(),
+  mitraId: z.string().trim().min(1).optional(),
   status: z.enum(userStatusValues).optional(),
   bio: optionalNullableStringSchema,
-  scope: z.enum(['PLATFORM', 'MITRA'], 'ruang lingkup permission tidak valid'),
+  scope: z.enum(['INSIDIA', 'MITRA'], 'ruang lingkup permission tidak valid'),
   websiteUrl: optionalNullableStringSchema,
   socialLinks: socialLinksValueSchema.optional(),
 });

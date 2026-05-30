@@ -5,29 +5,11 @@ import type {
   JwtPayload as JsonWebTokenPayload,
   SignOptions,
 } from 'jsonwebtoken';
-
-export type AccessTokenPayload = {
-  type: 'access';
-  sub: string;
-  email: string;
-  role: string;
-  permissions: string[];
-  status: UserStatus;
-  sessionId: string;
-  iat?: number;
-  exp?: number;
-};
-
-export type RefreshTokenPayload = {
-  type: 'refresh';
-  sub: string;
-  sessionId: string;
-  tokenVersion: number;
-  iat?: number;
-  exp?: number;
-};
-
-type JwtPayload = AccessTokenPayload | RefreshTokenPayload;
+import type {
+  AccessTokenPayload,
+  JwtPayload,
+  RefreshTokenPayload,
+} from './auth.types';
 
 @Injectable()
 export class JwtTokenService {

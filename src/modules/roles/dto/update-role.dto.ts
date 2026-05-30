@@ -7,7 +7,7 @@ import {
 export const updateRoleSchema = z.object({
   name: z.string().trim().min(1).optional(),
   code: roleCodeSchema.optional(),
-  scope: z.enum(['PLATFORM', 'MITRA']).optional(),
+  scope: z.enum(['INSIDIA', 'MITRA']).optional(),
   description: nullableTrimmedStringSchema,
   isSystem: z.boolean().optional(),
 });

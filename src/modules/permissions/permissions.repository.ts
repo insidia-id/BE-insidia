@@ -1,16 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastruktur/prisma/prisma.service';
-
-export const permissionSelect = {
-  id: true,
-  name: true,
-  code: true,
-  scope: true,
-  description: true,
-  createdAt: true,
-  updatedAt: true,
-} satisfies Prisma.PermissionSelect;
+import { permissionSelect } from './permissions.constants';
 
 @Injectable()
 export class PermissionsRepository {

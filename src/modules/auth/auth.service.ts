@@ -6,34 +6,27 @@ import {
 } from '@nestjs/common';
 import { LoginEventProvider, UserStatus } from '@prisma/client';
 import { createHash, randomUUID } from 'crypto';
+import {
+  ProfileResponse,
+  resolveAccessProfile,
+  serializeAuthUser,
+  serializeProfileUser,
+} from './auth.mapper';
+import type {
+  SessionUser,
+  UpdateGoogleUserInput,
+} from './auth.repository.types';
+import type {
+  AuthPayload,
+  AuthResponse,
+  CreateLoginEventInput,
+  OAuthAccountInput,
+  RequestOtpLoginResponse,
+} from './auth.types';
 import { OtpService } from '../otp/otp.service';
 import { AuthRepository } from './auth.repository';
-import type { OAuthAccountInput, SessionUser } from './auth.repository';
 import type { GoogleExchangeDto } from './dto/create-auth.dto';
 import { JwtTokenService } from './jwt-token.service';
-import {
-  getPlatformPermissionCodes,
-  getPlatformRoleCode,
-} from '../access-control/access-control.utils';
-
-type AuthUserResponse = {
-  id: string;
-  email: string;
-  emailVerified: Date | null;
-  name: string | null;
-  status: UserStatus;
-  image: string | null;
-  role: string | null;
-  permissions: string[];
-};
-
-type AuthResponse = {
-  user: AuthUserResponse;
-  accessToken: string;
-  refreshToken: string;
-  accessTokenExpiresInSeconds: number;
-  refreshTokenExpiresInSeconds: number;
-};
 
 @Injectable()
 export class AuthService {
@@ -70,11 +63,7 @@ export class AuthService {
       ipAddress,
     });
 
-    const response: {
-      token: string;
-      expiresInSeconds: number;
-      devOtp?: string;
-    } = {
+    const response: RequestOtpLoginResponse = {
       token: otp.token,
       expiresInSeconds: otp.expiresInSeconds,
     };
@@ -110,7 +99,6 @@ export class AuthService {
         user = await this.authRepository.createEmailUser(email);
         userId = user.id;
       }
-
       const session = await this.issueSession(user, ipAddress, userAgent);
       await this.recordLoginEvent({
         userId: user.id,
@@ -222,10 +210,10 @@ export class AuthService {
     }
 
     await this.ensureActiveUser(user);
-    const accessProfile = this.resolveAccessProfile(user);
+    const accessProfile = resolveAccessProfile(user);
 
     return {
-      user: this.serializeAuthUser(user),
+      user: serializeAuthUser(user),
       accessToken: this.jwtTokenService.signAccessToken(
         {
           sub: user.id,
@@ -252,11 +240,7 @@ export class AuthService {
   }
 
   private async syncGoogleProfile(user: SessionUser, input: GoogleExchangeDto) {
-    const dataToUpdate: {
-      name?: string | null;
-      image?: string | null;
-      emailVerified?: Date | null;
-    } = {};
+    const dataToUpdate: UpdateGoogleUserInput = {};
 
     if (!user.name && input.name) {
       dataToUpdate.name = input.name;
@@ -282,7 +266,7 @@ export class AuthService {
     ipAddress: string,
     userAgent?: string,
   ): Promise<AuthResponse> {
-    const accessProfile = this.resolveAccessProfile(user);
+    const accessProfile = resolveAccessProfile(user);
     const sessionId = randomUUID();
     const tokenVersion = 1;
     const refreshToken = this.jwtTokenService.signRefreshToken(
@@ -317,12 +301,27 @@ export class AuthService {
     });
 
     return {
-      user: this.serializeAuthUser(user),
+      user: serializeAuthUser(user),
       accessToken,
       refreshToken,
       accessTokenExpiresInSeconds: this.accessTokenTtlSeconds,
       refreshTokenExpiresInSeconds: this.refreshTokenTtlSeconds,
     };
+  }
+
+  async getProfile(auth: AuthPayload): Promise<ProfileResponse> {
+    const userId = auth.sub;
+    const user = await this.authRepository.getUserSelectById(userId);
+
+    if (!user) {
+      throw new NotFoundException('User tidak ditemukan');
+    }
+
+    return serializeProfileUser(user);
+  }
+
+  async getSessionStatus(auth: AuthPayload) {
+    return await this.authRepository.getStatusByUserId(auth.sub);
   }
 
   private async ensureActiveUser(
@@ -339,41 +338,7 @@ export class AuthService {
     return user;
   }
 
-  private resolveAccessProfile(user: SessionUser) {
-    const role = getPlatformRoleCode(user);
-
-    if (!role) {
-      throw new ForbiddenException('User belum memiliki role platform');
-    }
-
-    return {
-      role,
-      permissions: getPlatformPermissionCodes(user),
-    };
-  }
-
-  private serializeAuthUser(user: SessionUser): AuthUserResponse {
-    return {
-      id: user.id,
-      email: user.email,
-      emailVerified: user.emailVerified,
-      name: user.name,
-      status: user.status,
-      image: user.image,
-      role: getPlatformRoleCode(user),
-      permissions: getPlatformPermissionCodes(user),
-    };
-  }
-
-  private async recordLoginEvent(params: {
-    userId: string | null;
-    email: string;
-    provider: LoginEventProvider;
-    success: boolean;
-    reason: string;
-    ipAddress: string;
-    userAgent?: string;
-  }) {
+  private async recordLoginEvent(params: CreateLoginEventInput) {
     try {
       await this.authRepository.createLoginEvent(params);
     } catch (error) {
