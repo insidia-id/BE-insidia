@@ -14,6 +14,18 @@ export const updatePermissionSchema = z.object({
     )
     .optional(),
   description: nullableTrimmedStringSchema,
+  moduleId: z
+    .string()
+    .trim()
+    .min(1, 'id module permission wajib diisi')
+    .optional(),
+});
+export const updateModulePermissionSchema = z.object({
+  module: z.string().trim().min(1).optional(),
+  description: nullableTrimmedStringSchema,
 });
 
+export type UpdateModulePermissionDto = z.infer<
+  typeof updateModulePermissionSchema
+>;
 export type UpdatePermissionDto = z.infer<typeof updatePermissionSchema>;

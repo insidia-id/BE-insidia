@@ -205,7 +205,20 @@ export class UserRepository {
 
     return result.count > 0;
   }
-
+  countActiveAkademikByMitraId(mitraId: string) {
+    return this.prisma.user.count({
+      where: {
+        deletedAt: null,
+        status: UserStatus.ACTIVE,
+        mitraRoles: {
+          mitraId,
+          role: {
+            code: 'AKADEMIK',
+          },
+        },
+      },
+    });
+  }
   countActiveAdmins() {
     return this.prisma.user.count({
       where: {

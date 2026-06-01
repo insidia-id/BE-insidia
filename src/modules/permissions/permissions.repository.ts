@@ -1,12 +1,54 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastruktur/prisma/prisma.service';
-import { permissionSelect } from './permissions.constants';
+import {
+  modulePermissionSelect,
+  permissionSelect,
+} from './permissions.constants';
 
 @Injectable()
 export class PermissionsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  createModulePermission(data: Prisma.ModulePermissionCreateInput) {
+    return this.prisma.modulePermission.create({
+      data,
+    });
+  }
+  getModulePermissions(scope?: Prisma.PermissionWhereInput['scope']) {
+    return this.prisma.modulePermission.findMany({
+      orderBy: {
+        module: 'asc',
+      },
+      select: {
+        ...modulePermissionSelect,
+        permissions: {
+          where: {
+            scope,
+          },
+          select: permissionSelect,
+        },
+      },
+    });
+  }
+  updateModulePermission(id: string, data: Prisma.ModulePermissionUpdateInput) {
+    return this.prisma.modulePermission.update({
+      where: { id },
+      data,
+      select: modulePermissionSelect,
+    });
+  }
+  removeModulePermission(id: string) {
+    return this.prisma.modulePermission.delete({
+      where: { id },
+    });
+  }
+  getModulePermissionById(id: string) {
+    return this.prisma.modulePermission.findUnique({
+      where: { id },
+      select: modulePermissionSelect,
+    });
+  }
   createPermission(data: Prisma.PermissionCreateInput) {
     return this.prisma.permission.create({
       data,

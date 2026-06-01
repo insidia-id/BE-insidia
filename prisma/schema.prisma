@@ -264,17 +264,28 @@ model Role {
   @@index([scope])
   @@index([deletedAt])
 }
+model ModulePermission {
+  id           String @id @default(cuid())
+  module       String
+  description String?
 
+  permissions Permission[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([module])
+}
 model Permission {
   id          String    @id @default(cuid())
   name        String
   code        String    @unique
   scope       RoleScope
   description String?
-
+  moduleId    String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  module ModulePermission @relation(fields: [moduleId], references: [id], onDelete: Restrict)  
   roles RolePermission[]
   mitraRolePermissions MitraRolePermission[]
 

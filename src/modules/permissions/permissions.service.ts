@@ -4,30 +4,102 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, RoleScope } from '@prisma/client';
-import { CreatePermissionDto } from './dto/create-permission.dto';
+import {
+  CreateModulePermissionDto,
+  CreatePermissionDto,
+} from './dto/create-permission.dto';
 import { UpdatePermissionDto } from './dto/update-permission.dto';
 import { PermissionsRepository } from './permissions.repository';
 import { RolesPermissionService } from '../roles/roles.permission';
 import { AuthPayload } from '../auth/auth.types';
 import { PermissionsPolicy } from './permissions.policy';
 import { permissionCodes } from './permissions.constants';
+import {
+  mapCreateModulePermissionData,
+  mapCreatePermissionData,
+  mapUpdateModulePermissionData,
+} from './permission.mapper';
 
 @Injectable()
 export class PermissionsService {
   constructor(
     private readonly permissionsRepository: PermissionsRepository,
     private readonly rolesPermissionService: RolesPermissionService,
-    private readonly permissionsPolicy: PermissionsPolicy,
   ) {}
 
+  async createModulePermission(
+    createModulePermissionDto: CreateModulePermissionDto,
+  ) {
+    try {
+      return await this.permissionsRepository.createModulePermission(
+        mapCreateModulePermissionData(createModulePermissionDto),
+      );
+    } catch (error) {
+      this.handlePrismaError(error);
+    }
+  }
+  async findAllModulePermissions(
+    auth: AuthPayload,
+    scope: RoleScope,
+    mitraId?: string,
+  ) {
+    console.log('findAllModulePermissions', { scope, mitraId });
+    scope === 'MITRA'
+      ? await this.rolesPermissionService.hasAnyPermission(auth.sub, {
+          permission: [
+            permissionCodes.viewMitraPermissions,
+            permissionCodes.manageMitraPermissions,
+          ],
+          scope,
+          mitraId,
+        })
+      : await this.rolesPermissionService.hasPermission(auth.sub, {
+          permission: permissionCodes.viewInsidiaPermissions,
+          scope,
+        });
+    const modulePermissions =
+      await this.permissionsRepository.getModulePermissions(scope);
+    console.log('modulePermissions', modulePermissions);
+    return modulePermissions;
+  }
+  async updateModulePermission(
+    id: string,
+    updateModulePermissionDto: UpdatePermissionDto,
+  ) {
+    try {
+      const updatedModulePermission =
+        await this.permissionsRepository.updateModulePermission(
+          id,
+          mapUpdateModulePermissionData(updateModulePermissionDto),
+        );
+      if (!updatedModulePermission) {
+        throw new NotFoundException('Module permission tidak ditemukan');
+      }
+      return updatedModulePermission;
+    } catch (error) {
+      this.handlePrismaError(error);
+    }
+  }
+  removeModulePermission(id: string) {
+    try {
+      return this.permissionsRepository.removeModulePermission(id);
+    } catch (error) {
+      this.handlePrismaError(error);
+    }
+  }
   async createPermission(createPermissionDto: CreatePermissionDto) {
     try {
-      return await this.permissionsRepository.createPermission({
-        name: createPermissionDto.name,
-        code: createPermissionDto.code,
-        scope: createPermissionDto.scope,
-        description: createPermissionDto.description ?? null,
-      });
+      const module = await this.ensureModuleexists(
+        createPermissionDto.moduleId,
+      );
+      const createdPermission =
+        await this.permissionsRepository.createPermission(
+          mapCreatePermissionData(createPermissionDto),
+        );
+      return {
+        ...createdPermission,
+        module: { id: module.id, name: module.module },
+      };
     } catch (error) {
       this.handlePrismaError(error);
     }
@@ -46,6 +118,7 @@ export class PermissionsService {
           ],
           scope,
           mitraId,
+          requireMitraContext: true,
         })
       : await this.rolesPermissionService.hasPermission(auth.sub, {
           permission: permissionCodes.viewInsidiaPermissions,
@@ -107,7 +180,15 @@ export class PermissionsService {
 
     return { message: 'Permission berhasil dihapus' };
   }
+  async ensureModuleexists(id: string) {
+    const module = await this.permissionsRepository.getModulePermissionById(id);
 
+    if (!module) {
+      throw new NotFoundException('Module permission tidak ditemukan');
+    }
+
+    return module;
+  }
   private handlePrismaError(error: unknown): never {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&

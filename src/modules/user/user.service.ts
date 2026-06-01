@@ -129,7 +129,11 @@ export class UserService {
       scope,
       mitraId: effectiveMitraId,
     });
-    this.userPolicy.canView(actor, this.getExistingTargetRoleCode(user, scope));
+    this.userPolicy.canView(
+      actor,
+      this.getExistingTargetRoleCode(user, scope),
+      scope,
+    );
 
     return serializeUserWithAccess(user);
   }
@@ -137,29 +141,35 @@ export class UserService {
   async update(id: string, updateUserDto: UpdateUserDto, auth: AuthPayload) {
     const user = await this.ensureActiveUserExists(id);
     const actorId = this.getActorId(auth);
+
     const permissionCode =
       updateUserDto.scope === 'MITRA'
         ? userPermisionsCode.updateMitraUser
         : userPermisionsCode.updateInsidiaUser;
+
     const effectiveMitraId =
       updateUserDto.scope === 'MITRA'
         ? (updateUserDto.mitraId ?? user.mitraRoles?.mitraId)
         : undefined;
+
     const actor = await this.rolesPermissionService.hasPermission(actorId, {
       permission: permissionCode,
       scope: updateUserDto.scope,
       mitraId: effectiveMitraId,
       requireMitraContext: updateUserDto.scope === 'MITRA',
     });
+
     this.userPolicy.canUpdate(actor, {
       targetRoleCode: this.getTargetRoleCodeByScope(updateUserDto, user),
       targetScope: updateUserDto.scope,
     });
+
     if (updateUserDto.mitraRole && !updateUserDto.mitraId) {
       throw new ConflictException(
         'Mitra role tidak bisa diassign tanpa mitraId',
       );
     }
+
     if (updateUserDto.scope === 'MITRA' && effectiveMitraId) {
       this.userPolicy.canManageMitraUser(
         actor.mitraRoles?.mitraId ?? effectiveMitraId,
@@ -167,8 +177,9 @@ export class UserService {
         actor,
       );
     }
-    await this.ensureLastAdminStillExistsAfterUpdate(user, updateUserDto);
 
+    await this.ensureLastAdminStillExistsAfterUpdate(user, updateUserDto);
+    await this.ensureLastAkademikStillExistsAfterUpdate(user, updateUserDto);
     await this.ensureUniqueEmail(updateUserDto.email, id);
     await this.ensureUniquePhone(updateUserDto.phone, id);
 
@@ -319,7 +330,39 @@ export class UserService {
       throw new ConflictException('Admin terakhir tidak boleh dihapus');
     }
   }
+  private async ensureLastAkademikStillExistsAfterUpdate(
+    user: Awaited<ReturnType<UserService['ensureActiveUserExists']>>,
+    updateUserDto: UpdateUserDto,
+  ) {
+    const currentRole = user.mitraRoles?.role.code;
+    if (
+      !currentRole ||
+      currentRole !== 'AKADEMIK' ||
+      user.status !== UserStatus.ACTIVE
+    ) {
+      return;
+    }
+    const nextRole = updateUserDto.mitraRole ?? currentRole;
+    const nextStatus = updateUserDto.status ?? user.status;
 
+    const losingAkademikAccess =
+      nextRole !== 'AKADEMIK' || nextStatus !== UserStatus.ACTIVE;
+
+    if (!losingAkademikAccess) {
+      return;
+    }
+
+    const activeAkademikCount =
+      await this.userRepository.countActiveAkademikByMitraId(
+        user.mitraRoles?.mitraId ?? '',
+      );
+
+    if (activeAkademikCount <= 1) {
+      throw new ConflictException(
+        'User akademik terakhir tidak boleh kehilangan akses akademik',
+      );
+    }
+  }
   private async ensureLastAdminStillExistsAfterUpdate(
     user: Awaited<ReturnType<UserService['ensureActiveUserExists']>>,
     updateUserDto: UpdateUserDto,
@@ -345,7 +388,6 @@ export class UserService {
     }
 
     const activeAdminCount = await this.userRepository.countActiveAdmins();
-
     if (activeAdminCount <= 1) {
       throw new ConflictException(
         'Admin terakhir tidak boleh kehilangan akses admin',
@@ -396,7 +438,7 @@ export class UserService {
     scope: 'INSIDIA' | 'MITRA',
   ) {
     return scope === 'MITRA'
-      ? user.mitraRoles?.role.code ?? null
+      ? (user.mitraRoles?.role.code ?? null)
       : getInsidiaRoleCode(user);
   }
 }

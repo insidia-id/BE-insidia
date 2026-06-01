@@ -39,7 +39,11 @@ export class UserPolicy {
     throw new ForbiddenException('Tidak memiliki izin membuat user');
   }
 
-  canView(actorRole: actorRole, targetRoleCode: string | null) {
+  canView(
+    actorRole: actorRole,
+    targetRoleCode: string | null,
+    scope: 'INSIDIA' | 'MITRA',
+  ) {
     const mitraRoleCodes = actorRole.mitraRoles?.role.code;
 
     if (actorRole.insidiaRole?.role.code === 'SUPER_ADMIN') {
@@ -55,6 +59,7 @@ export class UserPolicy {
         'Admin tidak bisa melihat admin dan super admin',
       );
     }
+
     if (mitraRoleCodes === 'AKADEMIK') {
       if (
         targetRoleCode &&

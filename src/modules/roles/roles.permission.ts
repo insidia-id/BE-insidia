@@ -18,14 +18,8 @@ export class RolesPermissionService {
     private readonly userRepository: UserRepository,
   ) {}
   async getEffectivePermissions(userId: string, context: hasPermissionContext) {
-    console.log(
-      `[GET EFFECTIVE PERMISSIONS] userId=${userId} scope=${context.scope} mitraId=${context.mitraId} requireMitraContext=${context.requireMitraContext}`,
-    );
     const actor = await this.userRepository.findRoleByUserId(userId);
-    console.log(
-      `[GET EFFECTIVE PERMISSIONS] userId=${userId} scope=${context.scope} mitraId=${context.mitraId} actor=`,
-      actor,
-    );
+
     if (!actor) {
       throw new NotFoundException('User tidak ditemukan');
     }
@@ -53,9 +47,6 @@ export class RolesPermissionService {
       context.requireMitraContext &&
       !context.mitraId
     ) {
-      console.warn(
-        '[PERMISSION WARNING] mitraId wajib dikirim untuk scope MITRA',
-      );
       throw new ForbiddenException('mitraId wajib dikirim untuk scope MITRA');
     }
     const roleId =
@@ -86,20 +77,19 @@ export class RolesPermissionService {
     let effectivePermissions: string[];
 
     if (context.scope === 'MITRA') {
-      effectivePermissions = [...globalCodes].filter((code) =>
-        mitraCodes.has(code),
-      );
+      effectivePermissions = [...new Set([...globalCodes, ...mitraCodes])];
     } else {
       effectivePermissions = [...globalCodes];
     }
-    console.log('[EFFECTIVE PERMISSION DEBUG]', {
-      scope: context.scope,
-      mitraId: context.mitraId,
-      roleId,
-      globalPermissions: [...globalCodes],
-      mitraPermissions: [...mitraCodes],
-      effectivePermissions,
-    });
+
+    // if (context.scope === 'MITRA') {
+    //   effectivePermissions = [...globalCodes].filter((code) =>
+    //     mitraCodes.has(code),
+    //   );
+    // } else {
+    //   effectivePermissions = [...globalCodes];
+    // }
+
     return {
       actor,
       permissions: effectivePermissions,
@@ -107,19 +97,7 @@ export class RolesPermissionService {
   }
   async hasPermission(userId: string, context: hasPermissionContext) {
     const result = await this.getEffectivePermissions(userId, context);
-    console.log('[PERMISSION DEBUG]', {
-      userId,
-      scope: context.scope,
-      mitraId: context.mitraId,
-      actorRole: {
-        insidiaRole: result.actor.insidiaRole?.role?.code,
-        mitraRoles: result.actor.mitraRoles?.role.code,
-        mitraId: result.actor.mitraRoles?.mitraId,
-      },
-      userPermissions: result.permissions,
-      requiredPermission: context.permission,
-      allowedPermissionsForEndpoint: [context.permission],
-    });
+
     if (
       result.permissions[0] !== '*' &&
       !result.permissions.includes(context.permission)
@@ -151,21 +129,7 @@ export class RolesPermissionService {
       requireMitraContext: context.requireMitraContext,
       scope: context.scope,
     });
-    console.log('[PERMISSION DEBUG]', {
-      userId,
-      scope: context.scope,
-      mitraId: context.mitraId,
-      actorRole: {
-        insidiaRole: result.actor.insidiaRole?.role?.code,
-        actorRole: {
-          insidiaRole: result.actor.insidiaRole?.role?.code,
-          mitraRoles: result.actor.mitraRoles?.role.code,
-          mitraId: result.actor.mitraRoles?.mitraId,
-        },
-      },
-      userPermissions: result.permissions,
-      allowedPermissionsForEndpoint: context.permission,
-    });
+
     if (result.permissions[0] === '*') {
       return result.actor;
     }

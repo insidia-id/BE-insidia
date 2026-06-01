@@ -18,6 +18,8 @@ import {
 import { Roles, RolesGuard } from '../../shared/guards/admin-access.guard';
 import { ZodValidationPipe } from '../../shared/zod/zod-validation.pipe';
 import {
+  type CreateModulePermissionDto,
+  createModulePermissionSchema,
   createPermissionSchema,
   type CreatePermissionDto,
 } from './dto/create-permission.dto';
@@ -31,7 +33,45 @@ import { PermissionsService } from './permissions.service';
 @Controller('admin/permissions')
 export class PermissionsController {
   constructor(private readonly permissionsService: PermissionsService) {}
-
+  @Get('modules')
+  findAllModulePermissions(
+    @Req() request: AuthenticatedRequest,
+    @Query('scope') scope: RoleScope,
+    @Query('mitraId') mitraId?: string,
+  ) {
+    return this.permissionsService.findAllModulePermissions(
+      request.auth,
+      scope,
+      mitraId,
+    );
+  }
+  @Post('modules')
+  @Roles('SUPER_ADMIN')
+  createModulePermission(
+    @Body(new ZodValidationPipe(createModulePermissionSchema))
+    createModulePermissionDto: CreateModulePermissionDto,
+  ) {
+    return this.permissionsService.createModulePermission(
+      createModulePermissionDto,
+    );
+  }
+  @Patch('modules/:id')
+  @Roles('SUPER_ADMIN')
+  updateModulePermission(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(createModulePermissionSchema))
+    updateModulePermissionDto: CreateModulePermissionDto,
+  ) {
+    return this.permissionsService.updateModulePermission(
+      id,
+      updateModulePermissionDto,
+    );
+  }
+  @Delete('modules/:id')
+  @Roles('SUPER_ADMIN')
+  removeModulePermission(@Param('id') id: string) {
+    return this.permissionsService.removeModulePermission(id);
+  }
   @Get()
   findAllPermissions(
     @Req() request: AuthenticatedRequest,
@@ -70,6 +110,7 @@ export class PermissionsController {
     @Body(new ZodValidationPipe(updatePermissionSchema))
     updatePermissionDto: UpdatePermissionDto,
   ) {
+    console.log('updatePermissionDto', updatePermissionDto);
     return this.permissionsService.updatePermission(
       request.auth,
       id,
