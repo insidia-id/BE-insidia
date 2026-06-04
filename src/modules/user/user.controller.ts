@@ -29,8 +29,7 @@ import {
   AccessTokenGuard,
   type AuthenticatedRequest,
 } from '../../shared/guards/access-token.guard';
-import type { UploadedBulkUserFile } from './bulk-upload/bulk-user.types';
-
+import { type UploadedBulkFile } from 'src/infrastruktur/queue/bullmq/bulk.types';
 @UseGuards(AccessTokenGuard, RolesGuard)
 @Controller('admin/user')
 export class UserController {
@@ -97,6 +96,7 @@ export class UserController {
     @Query('scope') scope?: 'INSIDIA' | 'MITRA',
     @Query('mitraId') mitraId?: string,
   ) {
+    console.log('Deleting user', { id, scope, mitraId });
     return this.userService.remove(
       id,
       request.auth,
@@ -104,20 +104,26 @@ export class UserController {
       mitraId,
     );
   }
+  @Delete(':id/mitra-roles')
+  deleteUserMitraRoles(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') userId: string,
+    @Query('mitraId') mitraId: string,
+  ) {
+    console.log('Deleting mitra roles for user', { userId, mitraId });
+    return this.userService.deleteUserMitraRoles(request.auth, userId, mitraId);
+  }
   @Post('preview')
   @UseInterceptors(FileInterceptor('file'))
   preview(
     @Req() request: AuthenticatedRequest,
-    @UploadedFile() file: UploadedBulkUserFile,
+    @UploadedFile() file: UploadedBulkFile,
   ) {
     return this.previewBulkUserUseCase.execute(file, request.auth);
   }
 
   @Post('import/:jobId')
-  import(
-    @Req() request: AuthenticatedRequest,
-    @Param('jobId') jobId: string,
-  ) {
+  import(@Req() request: AuthenticatedRequest, @Param('jobId') jobId: string) {
     return this.enqueueBulkUserImportUseCase.execute(jobId, request.auth);
   }
 }

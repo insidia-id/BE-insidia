@@ -11,7 +11,6 @@ export class HttpExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse();
-
     const isHttpException = exception instanceof HttpException;
 
     const status = isHttpException
@@ -21,7 +20,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const exceptionResponse = isHttpException ? exception.getResponse() : null;
 
     const errorBody = this.normalizeError(status, exceptionResponse);
-
+    console.error({
+      exception,
+      name: exception instanceof Error ? exception.name : null,
+      message: exception instanceof Error ? exception.message : null,
+      stack: exception instanceof Error ? exception.stack : null,
+    });
     response.status(status).json({
       error: errorBody,
     });
@@ -41,7 +45,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
         status: status,
       };
     }
-
+    console.error('Status code:', status);
+    console.error('code', this.mapStatusToCode(status));
     return {
       code: this.mapStatusToCode(status),
       message:

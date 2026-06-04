@@ -268,18 +268,19 @@ model ModulePermission {
   id           String @id @default(cuid())
   module       String
   description String?
+  scope       RoleScope
 
   permissions Permission[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([module])
+  @@unique([module ,scope])
+  @@index([scope])
 }
 model Permission {
   id          String    @id @default(cuid())
   name        String
   code        String    @unique
-  scope       RoleScope
   description String?
   moduleId    String
   createdAt DateTime @default(now())
@@ -289,7 +290,7 @@ model Permission {
   roles RolePermission[]
   mitraRolePermissions MitraRolePermission[]
 
-  @@index([scope])
+  @@index([moduleId])
 }
 
 model RolePermission {

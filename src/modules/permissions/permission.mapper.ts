@@ -45,6 +45,7 @@ function assignModulePermission(
   dto: CreateModulePermissionDto,
 ) {
   data.module = dto.module.trim();
+  data.scope = dto.scope;
   data.description = dto.description ?? null;
 }
 
@@ -53,6 +54,7 @@ function assignUpdateModulePermission(
   dto: UpdateModulePermissionDto,
 ) {
   if (dto.module !== undefined) data.module = dto.module.trim();
+  if (dto.scope !== undefined) data.scope = dto.scope;
   if (dto.description !== undefined) data.description = dto.description;
 }
 
@@ -62,7 +64,6 @@ function assignPermission(
 ) {
   data.name = dto.name.trim();
   data.code = dto.code.trim();
-  data.scope = dto.scope;
   data.description = dto.description ?? null;
   data.module = { connect: { id: dto.moduleId } };
 }
@@ -72,7 +73,6 @@ function assignUpdatePermission(
 ) {
   if (dto.name !== undefined) data.name = dto.name.trim();
   if (dto.code !== undefined) data.code = dto.code.trim();
-  if (dto.scope !== undefined) data.scope = dto.scope;
   if (dto.description !== undefined) data.description = dto.description;
   if (dto.moduleId !== undefined)
     data.module = { connect: { id: dto.moduleId } };

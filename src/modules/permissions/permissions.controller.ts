@@ -8,7 +8,9 @@ import {
   Post,
   Query,
   Req,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { RoleScope } from '@prisma/client';
 import {
@@ -17,6 +19,10 @@ import {
 } from '../../shared/guards/access-token.guard';
 import { Roles, RolesGuard } from '../../shared/guards/admin-access.guard';
 import { ZodValidationPipe } from '../../shared/zod/zod-validation.pipe';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { PreviewBulkPermissionUseCase } from './bulk-upload/preview.bulk.modulepermision';
+import { EnqueueBulkPermissionImportUseCase } from './bulk-upload/enqueue-bulk-permission-import';
+import { type UploadedBulkFile } from 'src/infrastruktur/queue/bullmq/bulk.types';
 import {
   type CreateModulePermissionDto,
   createModulePermissionSchema,
@@ -32,7 +38,11 @@ import { PermissionsService } from './permissions.service';
 @UseGuards(AccessTokenGuard, RolesGuard)
 @Controller('admin/permissions')
 export class PermissionsController {
-  constructor(private readonly permissionsService: PermissionsService) {}
+  constructor(
+    private readonly permissionsService: PermissionsService,
+    private readonly previewBulkPermissionUseCase: PreviewBulkPermissionUseCase,
+    private readonly enqueueBulkPermissionImportUseCase: EnqueueBulkPermissionImportUseCase,
+  ) {}
   @Get('modules')
   findAllModulePermissions(
     @Req() request: AuthenticatedRequest,
@@ -72,18 +82,6 @@ export class PermissionsController {
   removeModulePermission(@Param('id') id: string) {
     return this.permissionsService.removeModulePermission(id);
   }
-  @Get()
-  findAllPermissions(
-    @Req() request: AuthenticatedRequest,
-    @Query('scope') scope: RoleScope,
-    @Query('mitraId') mitraId?: string,
-  ) {
-    return this.permissionsService.findAllPermissions(
-      request.auth,
-      scope,
-      mitraId,
-    );
-  }
 
   @Post()
   @Roles('SUPER_ADMIN')
@@ -110,7 +108,6 @@ export class PermissionsController {
     @Body(new ZodValidationPipe(updatePermissionSchema))
     updatePermissionDto: UpdatePermissionDto,
   ) {
-    console.log('updatePermissionDto', updatePermissionDto);
     return this.permissionsService.updatePermission(
       request.auth,
       id,
@@ -125,5 +122,19 @@ export class PermissionsController {
     @Param('id') id: string,
   ) {
     return this.permissionsService.removePermission(request.auth, id);
+  }
+
+  @Post('modules/preview')
+  @UseInterceptors(FileInterceptor('file'))
+  preview(
+    @Req() request: AuthenticatedRequest,
+    @UploadedFile() file: UploadedBulkFile,
+  ) {
+    return this.previewBulkPermissionUseCase.execute(file, request.auth);
+  }
+
+  @Post('modules/import/:jobId')
+  import(@Req() request: AuthenticatedRequest, @Param('jobId') jobId: string) {
+    return this.enqueueBulkPermissionImportUseCase.execute(jobId, request.auth);
   }
 }

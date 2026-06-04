@@ -4,7 +4,6 @@ export const permissionSelect = {
   name: true,
   moduleId: true,
   code: true,
-  scope: true,
   description: true,
   createdAt: true,
   updatedAt: true,
@@ -13,6 +12,7 @@ export const modulePermissionSelect = {
   id: true,
   module: true,
   description: true,
+  scope: true,
   createdAt: true,
   permissions: {
     select: permissionSelect,

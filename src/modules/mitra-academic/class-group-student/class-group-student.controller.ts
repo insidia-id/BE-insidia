@@ -47,11 +47,6 @@ export class ClassGroupStudentController {
     query: ClassGroupStudentListQueryDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    console.log('Finding class group students with data:', {
-      mitraId,
-      query,
-      userId: request.auth.sub,
-    });
     return this.service.findClassGroupStudents(mitraId, request.auth, query);
   }
 
@@ -61,11 +56,6 @@ export class ClassGroupStudentController {
     @Param('id') id: string,
     @Req() request: AuthenticatedRequest,
   ) {
-    console.log('Finding class group student with data:', {
-      mitraId,
-      id,
-      userId: request.auth.sub,
-    });
     return this.service.findClassGroupStudent(mitraId, id, request.auth);
   }
 

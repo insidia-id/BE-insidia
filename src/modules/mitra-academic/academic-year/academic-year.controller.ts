@@ -42,10 +42,6 @@ export class AcademicYearController {
     @Param('mitraId') mitraId: string,
     @Req() request: AuthenticatedRequest,
   ) {
-    console.log('Finding academic years with data:', {
-      mitraId,
-      userId: request.auth.sub,
-    });
     return this.service.findAcademicYears(mitraId, request.auth);
   }
 

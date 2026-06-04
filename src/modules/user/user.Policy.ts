@@ -74,11 +74,7 @@ export class UserPolicy {
     }
     throw new ForbiddenException('Tidak memiliki izin melihat user');
   }
-  canManageMitraUser(
-    currentMitraId: string,
-    targetMitraId: string,
-    actorRole?: actorRole,
-  ) {
+  canManageMitraUser(targetMitraId: string, actorRole?: actorRole) {
     if (actorRole?.insidiaRole?.role.code === 'SUPER_ADMIN') {
       return true;
     }
@@ -86,7 +82,7 @@ export class UserPolicy {
     if (actorRole?.insidiaRole?.role.code === 'ADMIN') {
       return true;
     }
-    if (currentMitraId === targetMitraId) {
+    if (actorRole?.mitraRoles?.mitraId === targetMitraId) {
       return true;
     }
     throw new ForbiddenException('Tidak memiliki izin mengelola user mitra');

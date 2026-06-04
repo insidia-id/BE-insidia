@@ -9,9 +9,19 @@ import { PermissionsRepository } from './permissions.repository';
 import { PermissionsService } from './permissions.service';
 import { RolesModule } from '../roles/roles.module';
 import { PermissionsPolicy } from './permissions.policy';
+import { BullmqModule } from '../../infrastruktur/queue/bullmq/bullmq.module';
+import { BulkPermissionValidatorService } from './bulk-upload/bulk.modulepermisson.validator';
+import { PreviewBulkPermissionUseCase } from './bulk-upload/preview.bulk.modulepermision';
+import { EnqueueBulkPermissionImportUseCase } from './bulk-upload/enqueue-bulk-permission-import';
+import { ProcessBulkPermissionImportUseCase } from './bulk-upload/process-bulk-permission-import';
 
 @Module({
-  imports: [PrismaModule, AuthModule, forwardRef(() => RolesModule)],
+  imports: [
+    PrismaModule,
+    AuthModule,
+    forwardRef(() => RolesModule),
+    forwardRef(() => BullmqModule),
+  ],
   controllers: [PermissionsController],
   providers: [
     PermissionsService,
@@ -20,7 +30,16 @@ import { PermissionsPolicy } from './permissions.policy';
     JwtTokenService,
     AccessTokenGuard,
     RolesGuard,
+    BulkPermissionValidatorService,
+    PreviewBulkPermissionUseCase,
+    EnqueueBulkPermissionImportUseCase,
+    ProcessBulkPermissionImportUseCase,
   ],
-  exports: [PermissionsService, PermissionsRepository, PermissionsPolicy],
+  exports: [
+    PermissionsService,
+    PermissionsRepository,
+    PermissionsPolicy,
+    ProcessBulkPermissionImportUseCase,
+  ],
 })
 export class PermissionsModule {}

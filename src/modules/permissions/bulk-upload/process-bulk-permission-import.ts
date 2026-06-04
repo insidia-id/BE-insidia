@@ -1,13 +1,17 @@
 import { Injectable } from '@nestjs/common';
-import { BulkUploadJobStatus, BulkUploadRowStatus } from '@prisma/client';
-import { UserRepository } from '../user.repository';
-import { CreateUserDto } from '../dto/create-user.dto';
+import {
+  BulkUploadJobStatus,
+  BulkUploadRowStatus,
+  Prisma,
+} from '@prisma/client';
 import { BulkService } from 'src/infrastruktur/queue/bullmq/bulk.service';
+import type { BulkPermissionDto } from '../dto/create-permission.dto';
+import { PermissionsService } from '../permissions.service';
 @Injectable()
-export class ProcessBulkUserImportUseCase {
+export class ProcessBulkPermissionImportUseCase {
   constructor(
     private readonly bulkService: BulkService,
-    private readonly userRepository: UserRepository,
+    private readonly permissionsService: PermissionsService,
   ) {}
 
   async execute(jobId: string) {
@@ -15,7 +19,6 @@ export class ProcessBulkUserImportUseCase {
       jobId,
       BulkUploadJobStatus.PROCESSING,
     );
-
     const rows = await this.bulkService.findBulkUploadRows(
       jobId,
       BulkUploadRowStatus.VALID,
@@ -24,10 +27,11 @@ export class ProcessBulkUserImportUseCase {
     let failedRows = 0;
 
     for (const row of rows) {
-      const rawData = row.rawData as CreateUserDto;
+      const rawData = row.rawData as BulkPermissionDto;
 
       try {
-        await this.userRepository.upsertBulkUser(rawData);
+        await this.permissionsService.upsertModulePermission(rawData);
+
         await this.bulkService.updateBulkUploadRowStatus(
           row.id,
           BulkUploadRowStatus.SUCCESS,
@@ -35,8 +39,7 @@ export class ProcessBulkUserImportUseCase {
 
         successRows++;
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'Unknown error';
+        const message = this.getImportErrorMessage(error);
 
         await this.bulkService.updateBulkUploadRowStatus(
           row.id,
@@ -47,6 +50,7 @@ export class ProcessBulkUserImportUseCase {
         failedRows++;
       }
     }
+
     await this.bulkService.updateBulkUploadJob(jobId, {
       successRows,
       failedRows,
@@ -57,5 +61,20 @@ export class ProcessBulkUserImportUseCase {
       successRows,
       failedRows,
     };
+  }
+
+  private getImportErrorMessage(error: unknown) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      return 'Kode permission sudah digunakan';
+    }
+
+    if (error instanceof Error) {
+      return error.message;
+    }
+
+    return 'Unknown error';
   }
 }

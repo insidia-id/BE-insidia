@@ -12,7 +12,6 @@ const rolePermissionSelect = {
       id: true,
       name: true,
       code: true,
-      scope: true,
       description: true,
       createdAt: true,
       updatedAt: true,
@@ -29,7 +28,6 @@ const mitraRolePermissionSelect = {
       id: true,
       name: true,
       code: true,
-      scope: true,
       description: true,
       createdAt: true,
       updatedAt: true,
@@ -106,24 +104,27 @@ export class RolesRepository {
     }
 
     return roles.map((role) => {
-      const { mitraRolePermissions, ...rest } = role as typeof role & {
-        mitraRolePermissions: Array<any>;
-      };
-      const scopedPermissions = mitraRolePermissions as Array<any>;
+      const { mitraRolePermissions, mitraUsers, ...rest } =
+        role as typeof role & {
+          mitraRolePermissions: Array<any>;
+          mitraUsers: Array<any>;
+        };
 
       return {
         ...rest,
-        permissions: scopedPermissions.map(
-          ({ id, roleId, permissionId, permission }) => ({
+
+        permissions: mitraRolePermissions.map(
+          ({ id, roleId, permissionId }) => ({
             id,
             roleId,
             permissionId,
-            permission,
           }),
         ),
+
         _count: {
           ...role._count,
-          permissions: scopedPermissions.length,
+          permissions: mitraRolePermissions.length,
+          mitraUsers: mitraUsers.length,
         },
       };
     });
@@ -300,19 +301,34 @@ export class RolesRepository {
         scope,
         ...(includeDeleted ? {} : { deletedAt: null }),
       },
+
       orderBy: [{ scope: 'asc' }, { name: 'asc' }],
+
       select: {
         ...roleSelect,
+
         ...(mitraId
           ? {
               mitraRolePermissions: {
-                where: { mitraId },
+                where: {
+                  mitraId,
+                },
                 orderBy: {
                   permission: {
                     name: 'asc',
                   },
                 },
                 select: mitraRolePermissionSelect,
+              },
+
+              // tambahin ini
+              mitraUsers: {
+                where: {
+                  mitraId,
+                },
+                select: {
+                  id: true,
+                },
               },
             }
           : {}),

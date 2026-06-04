@@ -9,7 +9,6 @@ import { UserPolicy } from './user.Policy';
 import { RolesModule } from '../roles/roles.module';
 import { AuthModule } from '../auth/auth.module';
 import { BullmqModule } from '../../infrastruktur/queue/bullmq/bullmq.module';
-import { BulkUserParserService } from './bulk-upload/bulk-user-parser';
 import { BulkUserValidatorService } from './bulk-upload/bulk-user-validator';
 import { PreviewBulkUserUseCase } from './bulk-upload/preview-bulk-user';
 import { EnqueueBulkUserImportUseCase } from './bulk-upload/enqueue-bulk-user-import';
@@ -28,7 +27,6 @@ import { ProcessBulkUserImportUseCase } from './bulk-upload/process-bulk-user-im
     JwtTokenService,
     RolesGuard,
     UserPolicy,
-    BulkUserParserService,
     BulkUserValidatorService,
     PreviewBulkUserUseCase,
     EnqueueBulkUserImportUseCase,

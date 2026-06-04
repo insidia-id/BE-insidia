@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -57,11 +58,7 @@ export class UserService {
         );
       }
       if (isMitraScope && createUserDto.mitraId) {
-        this.userPolicy.canManageMitraUser(
-          actor.mitraRoles?.mitraId ?? createUserDto.mitraId,
-          createUserDto.mitraId,
-          actor,
-        );
+        this.userPolicy.canManageMitraUser(createUserDto.mitraId, actor);
       }
       const createdUser = await this.userRepository.create(
         mapCreateUserData(createUserDto, actorId),
@@ -171,11 +168,7 @@ export class UserService {
     }
 
     if (updateUserDto.scope === 'MITRA' && effectiveMitraId) {
-      this.userPolicy.canManageMitraUser(
-        actor.mitraRoles?.mitraId ?? effectiveMitraId,
-        effectiveMitraId,
-        actor,
-      );
+      this.userPolicy.canManageMitraUser(effectiveMitraId, actor);
     }
 
     await this.ensureLastAdminStillExistsAfterUpdate(user, updateUserDto);
@@ -243,6 +236,37 @@ export class UserService {
 
     return { message: 'User berhasil dihapus' };
   }
+
+  async deleteUserMitraRoles(
+    auth: AuthPayload,
+    userId: string,
+    mitraId: string,
+  ) {
+    const actorId = this.getActorId(auth);
+    try {
+      await this.ensureUserExists(userId);
+      if (!mitraId) {
+        throw new BadRequestException(
+          'MitraId harus disertakan untuk menghapus peran mitra user',
+        );
+      }
+      const actor = await this.rolesPermissionService.hasPermission(actorId, {
+        permission: userPermisionsCode.deleteMitraUser,
+        scope: 'MITRA',
+        mitraId,
+        requireMitraContext: true,
+      });
+      console.log('Actor has permission to delete mitra user roles', {
+        actor: actor.mitraRoles?.mitraId ?? '',
+        mitraId,
+      });
+      this.userPolicy.canManageMitraUser(mitraId, actor);
+      await this.userRepository.deleteUserMitraRoles(userId, mitraId);
+    } catch (error) {
+      this.handleRepositoryError(error);
+    }
+  }
+
   async findRoleByUserId(userId: string) {
     await this.ensureUserExists(userId);
     return this.userRepository.findRoleByUserId(userId);

@@ -76,10 +76,17 @@ export class RolesService implements OnModuleInit {
       });
     }
 
-    const res = this.rolesRepository.findRoles({
+    const res = await this.rolesRepository.findRoles({
       scope,
       includeDeleted,
       ...(scope === 'MITRA' && mitraId ? { mitraId } : {}),
+    });
+
+    console.log('Found roles with params', {
+      scope,
+      includeDeleted,
+      mitraId: scope === 'MITRA' ? mitraId : undefined,
+      resultsCount: JSON.stringify(res, null, 2),
     });
     return res;
   }
@@ -174,6 +181,11 @@ export class RolesService implements OnModuleInit {
     roleId: string,
     assignRolePermissionsDto: AssignRolePermissionsDto,
   ) {
+    console.log('Replacing role permissions with data:', {
+      authSub: auth.sub,
+      roleId,
+      permissionIds: assignRolePermissionsDto.permissionIds,
+    });
     const role = await this.ensureRoleExists(roleId);
     const isMitraRole = role.scope === 'MITRA';
     await this.ensurePermissionsMatchScope(
@@ -276,13 +288,17 @@ export class RolesService implements OnModuleInit {
 
     const permissions =
       await this.permissionsRepository.findPermissionsByIds(permissionIds);
-    const uniquePermissionIds = new Set(permissions.map((p) => p.id));
+    console.log(
+      `permissions for ids ${permissionIds}:`,
+      `permissions`,
+      permissions,
+    );
     if (permissions.length !== permissionIds.length) {
       throw new NotFoundException('Sebagian permission tidak ditemukan');
     }
 
     const invalidPermission = permissions.find(
-      (permission) => permission.scope !== roleScope,
+      (permission) => permission.module.scope !== roleScope,
     );
 
     if (invalidPermission) {

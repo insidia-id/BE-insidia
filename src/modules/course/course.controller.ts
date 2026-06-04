@@ -37,7 +37,6 @@ export class CourseController {
     createCourseDto: CreateCourseDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    console.log('createCourseDto', createCourseDto);
     return this.courseService.create(createCourseDto, request.auth);
   }
 

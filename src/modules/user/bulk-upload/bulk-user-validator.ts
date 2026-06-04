@@ -2,17 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { createUserSchema } from '../dto/create-user.dto';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { normalizeEmail } from '../user.mapper';
-
-export type ValidationResult = {
-  rowNumber: number;
-  rawData: CreateUserDto;
-  parsedData?: CreateUserDto;
-  errors: string[];
-};
+import { ValidationResult } from 'src/infrastruktur/queue/bullmq/bulk.types';
 
 @Injectable()
 export class BulkUserValidatorService {
-  validate(rows: CreateUserDto[]): ValidationResult[] {
+  validate(rows: CreateUserDto[]): ValidationResult<CreateUserDto>[] {
     const seenEmails = new Set<string>();
 
     return rows.map((row, index) => {

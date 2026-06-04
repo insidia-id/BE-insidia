@@ -31,7 +31,6 @@ export class CourseService {
   ) {}
 
   async create(createCourseDto: CreateCourseDto, auth: AuthPayload) {
-    console.log('createCourseDto', createCourseDto);
     const actorId = this.getActorId(auth);
     const isMitraCourse = createCourseDto.scope === 'MITRA';
 

@@ -7,6 +7,9 @@ export type JobPayloadMap = {
   [JobType.COURSE_BULK_IMPORT]: {
     jobId: string;
   };
+  [JobType.PERMISSION_BULK_IMPORT]: {
+    jobId: string;
+  };
 };
 
 export interface JobRunner {

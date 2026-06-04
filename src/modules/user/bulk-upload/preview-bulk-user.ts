@@ -6,30 +6,29 @@ import {
 
 import type { AuthPayload } from '../../auth/auth.types';
 import { RolesPermissionService } from '../../roles/roles.permission';
-import { BulkUserParserService } from './bulk-user-parser';
-import {
-  BulkUserValidatorService,
-  ValidationResult,
-} from './bulk-user-validator';
-import { BulkUploadRepository } from '../../../infrastruktur/queue/bullmq/bulk-upload.repository';
+import { BulkUserValidatorService } from './bulk-user-validator';
 import type { CreateUserDto } from '../dto/create-user.dto';
 import { UserPolicy } from '../user.Policy';
 import { UserRepository } from '../user.repository';
 import { userPermisionsCode } from '../user.constants';
-import { UploadedBulkUserFile } from './bulk-user.types';
-
+import { BulkParserService } from 'src/infrastruktur/queue/bullmq/bulk-parser';
+import {
+  UploadedBulkFile,
+  ValidationResult,
+} from 'src/infrastruktur/queue/bullmq/bulk.types';
+import { BulkService } from 'src/infrastruktur/queue/bullmq/bulk.service';
 @Injectable()
 export class PreviewBulkUserUseCase {
   constructor(
-    private readonly parser: BulkUserParserService,
+    private readonly fileParserService: BulkParserService,
     private readonly validator: BulkUserValidatorService,
-    private readonly repository: BulkUploadRepository,
+    private readonly bulkService: BulkService,
     private readonly userRepository: UserRepository,
     private readonly rolesPermissionService: RolesPermissionService,
     private readonly userPolicy: UserPolicy,
   ) {}
 
-  async execute(file: UploadedBulkUserFile, auth: AuthPayload) {
+  async execute(file: UploadedBulkFile, auth: AuthPayload) {
     if (!file) {
       throw new BadRequestException('File wajib diupload');
     }
@@ -40,7 +39,8 @@ export class PreviewBulkUserUseCase {
       throw new NotFoundException('User tidak ditemukan');
     }
 
-    const rows = await this.parser.parse(file);
+    const rows = await this.fileParserService.parse<CreateUserDto>(file);
+
     const preparedRows = rows.map((row) => this.applyActorDefaults(row, actor));
     const validatedRows = await this.authorizeRows(
       auth.sub,
@@ -48,32 +48,17 @@ export class PreviewBulkUserUseCase {
       this.validator.validate(preparedRows),
     );
 
-    const validRows = validatedRows.filter((row) => row.errors.length === 0).length;
+    const job = await this.bulkService.createBulkUploadJob(
+      file.originalname,
+      auth.sub,
+      validatedRows,
+    );
 
-    const invalidRows = validatedRows.length - validRows;
-
-    const job = await this.repository.createBulkUploadJob({
-      fileName: file.originalname,
-      uploadedBy: auth.sub,
-
-      totalRows: validatedRows.length,
-
-      validRows,
-      invalidRows,
-
-      rows: validatedRows.map((row) => ({
-        rowNumber: row.rowNumber,
-        rawData: row.parsedData ?? row.rawData,
-        errors: row.errors,
-      })),
-    });
+    const summary = this.bulkService.buildPreviewSummary(validatedRows);
 
     return {
       jobId: job.id,
-      totalRows: job.totalRows,
-      validRows: job.validRows,
-      invalidRows: job.invalidRows,
-      canImport: job.invalidRows === 0,
+      ...summary,
     };
   }
 
@@ -98,7 +83,7 @@ export class PreviewBulkUserUseCase {
   private async authorizeRows(
     actorId: string,
     actor: NonNullable<Awaited<ReturnType<UserRepository['findRoleByUserId']>>>,
-    rows: ValidationResult[],
+    rows: ValidationResult<CreateUserDto>[],
   ) {
     const checkedContexts = new Set<string>();
 
@@ -111,33 +96,12 @@ export class PreviewBulkUserUseCase {
         const data = row.parsedData;
 
         try {
-          const contextKey = `${data.scope}:${data.mitraId ?? ''}`;
-
-          if (!checkedContexts.has(contextKey)) {
-            await this.rolesPermissionService.hasPermission(actorId, {
-              permission:
-                data.scope === 'MITRA'
-                  ? userPermisionsCode.createMitraUser
-                  : userPermisionsCode.createInsidiaUser,
-              scope: data.scope,
-              mitraId: data.scope === 'MITRA' ? data.mitraId : undefined,
-              requireMitraContext: data.scope === 'MITRA',
-            });
-            checkedContexts.add(contextKey);
-          }
-
-          this.userPolicy.canCreate(actor, {
-            targetRoleCode: this.getTargetRoleCode(data),
-            targetScope: data.scope,
-          });
-
-          if (data.scope === 'MITRA' && data.mitraId) {
-            this.userPolicy.canManageMitraUser(
-              actor.mitraRoles?.mitraId ?? data.mitraId,
-              data.mitraId,
-              actor,
-            );
-          }
+          await this.validateImportAccess(
+            actorId,
+            actor,
+            data,
+            checkedContexts,
+          );
 
           return row;
         } catch (error) {
@@ -155,7 +119,37 @@ export class PreviewBulkUserUseCase {
     );
   }
 
-  private getTargetRoleCode(data: CreateUserDto) {
-    return data.scope === 'MITRA' ? data.mitraRole ?? null : data.role ?? null;
+  async validateImportAccess(
+    actorId: string,
+    actor: NonNullable<Awaited<ReturnType<UserRepository['findRoleByUserId']>>>,
+
+    data: CreateUserDto,
+    checkedContexts: Set<string>,
+  ) {
+    const contextKey = `${data.scope}:${data.mitraId ?? ''}`;
+
+    if (!checkedContexts.has(contextKey)) {
+      await this.rolesPermissionService.hasPermission(actorId, {
+        permission:
+          data.scope === 'MITRA'
+            ? userPermisionsCode.createMitraUser
+            : userPermisionsCode.createInsidiaUser,
+        scope: data.scope,
+        mitraId: data.scope === 'MITRA' ? data.mitraId : undefined,
+        requireMitraContext: data.scope === 'MITRA',
+      });
+
+      checkedContexts.add(contextKey);
+    }
+
+    this.userPolicy.canCreate(actor, {
+      targetRoleCode:
+        data.scope === 'MITRA' ? (data.mitraRole ?? null) : (data.role ?? null),
+      targetScope: data.scope,
+    });
+
+    if (data.scope === 'MITRA' && data.mitraId) {
+      this.userPolicy.canManageMitraUser(data.mitraId, actor);
+    }
   }
 }

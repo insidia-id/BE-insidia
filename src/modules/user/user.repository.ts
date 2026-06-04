@@ -236,7 +236,14 @@ export class UserRepository {
       },
     });
   }
-
+  async deleteUserMitraRoles(userId: string, mitraId: string) {
+    await this.prisma.userMitraRole.deleteMany({
+      where: {
+        userId,
+        mitraId,
+      },
+    });
+  }
   private handlePrismaError(error: unknown): never {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&

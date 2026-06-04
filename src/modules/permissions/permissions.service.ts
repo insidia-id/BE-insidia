@@ -1,10 +1,12 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, RoleScope } from '@prisma/client';
 import {
+  BulkPermissionDto,
   CreateModulePermissionDto,
   CreatePermissionDto,
 } from './dto/create-permission.dto';
@@ -12,12 +14,12 @@ import { UpdatePermissionDto } from './dto/update-permission.dto';
 import { PermissionsRepository } from './permissions.repository';
 import { RolesPermissionService } from '../roles/roles.permission';
 import { AuthPayload } from '../auth/auth.types';
-import { PermissionsPolicy } from './permissions.policy';
 import { permissionCodes } from './permissions.constants';
 import {
   mapCreateModulePermissionData,
   mapCreatePermissionData,
   mapUpdateModulePermissionData,
+  mapUpdatePermissionData,
 } from './permission.mapper';
 
 @Injectable()
@@ -43,7 +45,6 @@ export class PermissionsService {
     scope: RoleScope,
     mitraId?: string,
   ) {
-    console.log('findAllModulePermissions', { scope, mitraId });
     scope === 'MITRA'
       ? await this.rolesPermissionService.hasAnyPermission(auth.sub, {
           permission: [
@@ -59,7 +60,6 @@ export class PermissionsService {
         });
     const modulePermissions =
       await this.permissionsRepository.getModulePermissions(scope);
-    console.log('modulePermissions', modulePermissions);
     return modulePermissions;
   }
   async updateModulePermission(
@@ -80,9 +80,9 @@ export class PermissionsService {
       this.handlePrismaError(error);
     }
   }
-  removeModulePermission(id: string) {
+  async removeModulePermission(id: string) {
     try {
-      return this.permissionsRepository.removeModulePermission(id);
+      return await this.permissionsRepository.removeModulePermission(id);
     } catch (error) {
       this.handlePrismaError(error);
     }
@@ -103,28 +103,6 @@ export class PermissionsService {
     } catch (error) {
       this.handlePrismaError(error);
     }
-  }
-
-  async findAllPermissions(
-    auth: AuthPayload,
-    scope: RoleScope,
-    mitraId?: string,
-  ) {
-    scope === 'MITRA'
-      ? await this.rolesPermissionService.hasAnyPermission(auth.sub, {
-          permission: [
-            permissionCodes.viewMitraPermissions,
-            permissionCodes.manageMitraPermissions,
-          ],
-          scope,
-          mitraId,
-          requireMitraContext: true,
-        })
-      : await this.rolesPermissionService.hasPermission(auth.sub, {
-          permission: permissionCodes.viewInsidiaPermissions,
-          scope,
-        });
-    return this.permissionsRepository.findPermissions(scope);
   }
 
   async findPermissionById(auth: AuthPayload, id: string) {
@@ -150,20 +128,10 @@ export class PermissionsService {
     await this.findPermissionById(auth, id);
 
     try {
-      return await this.permissionsRepository.updatePermission(id, {
-        ...(updatePermissionDto.name !== undefined
-          ? {
-              name: updatePermissionDto.name,
-              code: updatePermissionDto.code,
-            }
-          : {}),
-        ...(updatePermissionDto.scope !== undefined
-          ? { scope: updatePermissionDto.scope }
-          : {}),
-        ...(updatePermissionDto.description !== undefined
-          ? { description: updatePermissionDto.description ?? null }
-          : {}),
-      });
+      return await this.permissionsRepository.updatePermission(
+        id,
+        mapUpdatePermissionData(updatePermissionDto),
+      );
     } catch (error) {
       this.handlePrismaError(error);
     }
@@ -180,6 +148,7 @@ export class PermissionsService {
 
     return { message: 'Permission berhasil dihapus' };
   }
+
   async ensureModuleexists(id: string) {
     const module = await this.permissionsRepository.getModulePermissionById(id);
 
@@ -189,6 +158,16 @@ export class PermissionsService {
 
     return module;
   }
+
+  async upsertModulePermission(data: BulkPermissionDto) {
+    try {
+      return await this.permissionsRepository.upsertModulePermission(data);
+    } catch (error) {
+      console.error('Error upserting module permission:', error);
+      this.handlePrismaError(error);
+    }
+  }
+
   private handlePrismaError(error: unknown): never {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -196,7 +175,14 @@ export class PermissionsService {
     ) {
       throw new ConflictException('Kode permission sudah digunakan');
     }
-
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2003'
+    ) {
+      throw new BadRequestException(
+        'Module permission tidak dapat dihapus karena masih digunakan oleh permission lain',
+      );
+    }
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2025'

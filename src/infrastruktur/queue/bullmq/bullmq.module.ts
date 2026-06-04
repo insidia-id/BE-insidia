@@ -4,8 +4,12 @@ import { JOB_RUNNER } from '../../../shared/jobs/job-contract';
 import { BullmqJobRunner } from './bullmq-job-runner';
 import { UserBulkImportProcessor } from './processors/user-bulk-import.processor';
 import { UserModule } from '../../../modules/user/user.module';
+import { PermissionsModule } from '../../../modules/permissions/permissions.module';
 import { BulkUploadRepository } from './bulk-upload.repository';
 import { PrismaModule } from '../../prisma/prisma.module';
+import { BulkService } from './bulk.service';
+import { BulkParserService } from './bulk-parser';
+import { PermissionBulkImportProcessor } from './processors/permission-bulk-import.processor';
 @Module({
   imports: [
     BullModule.registerQueue({
@@ -14,6 +18,7 @@ import { PrismaModule } from '../../prisma/prisma.module';
 
     PrismaModule,
     forwardRef(() => UserModule),
+    forwardRef(() => PermissionsModule),
   ],
   providers: [
     {
@@ -22,7 +27,14 @@ import { PrismaModule } from '../../prisma/prisma.module';
     },
     BulkUploadRepository,
     UserBulkImportProcessor,
+    PermissionBulkImportProcessor,
+    BulkParserService,
+    BulkService,
   ],
-  exports: [JOB_RUNNER, BulkUploadRepository],
+  exports: [JOB_RUNNER, BulkUploadRepository, BulkService, BulkParserService],
 })
-export class BullmqModule {}
+export class BullmqModule {
+  constructor() {
+    console.log('🔥 BullmqModule loaded');
+  }
+}

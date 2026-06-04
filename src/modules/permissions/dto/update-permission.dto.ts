@@ -3,7 +3,6 @@ import { nullableTrimmedStringSchema } from '../../access-control/dto/shared-acc
 
 export const updatePermissionSchema = z.object({
   name: z.string().trim().min(1).optional(),
-  scope: z.enum(['INSIDIA', 'MITRA']).optional(),
   code: z
     .string()
     .trim()
@@ -22,6 +21,7 @@ export const updatePermissionSchema = z.object({
 });
 export const updateModulePermissionSchema = z.object({
   module: z.string().trim().min(1).optional(),
+  scope: z.enum(['INSIDIA', 'MITRA']).optional(),
   description: nullableTrimmedStringSchema,
 });
 
