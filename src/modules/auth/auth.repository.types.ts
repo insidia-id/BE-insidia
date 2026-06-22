@@ -65,6 +65,13 @@ export const profileUserSelect = {
   mitraRoles: {
     select: {
       mitraId: true,
+      mitra: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+        },
+      },
       role: {
         select: {
           code: true,
@@ -74,13 +81,6 @@ export const profileUserSelect = {
           mitraRolePermissions: {
             select: mitraPermissionCodeSelect,
           },
-        },
-      },
-      mitra: {
-        select: {
-          id: true,
-          name: true,
-          slug: true,
         },
       },
     },
@@ -93,6 +93,7 @@ export const sessionSelect = {
     select: {
       role: {
         select: {
+          id: true,
           code: true,
         },
       },
@@ -103,6 +104,7 @@ export const sessionSelect = {
     select: {
       role: {
         select: {
+          id: true,
           code: true,
         },
       },

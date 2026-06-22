@@ -91,7 +91,10 @@ export class LearningMaterialService {
     const term = await this.access.resolveDefaultTerm(mitraId, query);
     const termParams = toAcademicTermParams(term);
 
-    if (actor.isSuperAdmin || actor.mitraRoleCode === 'AKADEMIK') {
+    if (
+      actor.isSuperAdmin ||
+      actor.mitraRoleCode?.find((code) => code === 'AKADEMIK')
+    ) {
       const items = await this.repository.findLearningMaterials({
         mitraId,
         classGroupId: query.classGroupId,
@@ -103,7 +106,7 @@ export class LearningMaterialService {
       return items.map(serializeLearningMaterial);
     }
 
-    if (actor.mitraRoleCode === 'GURU') {
+    if (actor.mitraRoleCode?.find((code) => code === 'GURU')) {
       const items = await this.repository.findLearningMaterials({
         mitraId,
         classGroupId: query.classGroupId,
@@ -134,11 +137,14 @@ export class LearningMaterialService {
     );
     const material = await this.access.ensureLearningMaterial(id, mitraId);
 
-    if (actor.isSuperAdmin || actor.mitraRoleCode === 'AKADEMIK') {
+    if (
+      actor.isSuperAdmin ||
+      actor.mitraRoleCode?.find((code) => code === 'AKADEMIK')
+    ) {
       return serializeLearningMaterial(material);
     }
 
-    if (actor.mitraRoleCode === 'GURU') {
+    if (actor.mitraRoleCode?.find((code) => code === 'GURU')) {
       if (material.teacherId !== auth.sub) {
         throw new ForbiddenException(
           'Guru hanya bisa melihat materi yang dia upload',

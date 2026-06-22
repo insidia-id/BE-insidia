@@ -4,7 +4,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import type { AuthPayload } from '../../auth/auth.types';
 import { RolesPermissionService } from '../../roles/roles.permission';
 import { BulkUserValidatorService } from './bulk-user-validator';
 import type { CreateUserDto } from '../dto/create-user.dto';
@@ -17,6 +16,7 @@ import {
   ValidationResult,
 } from 'src/infrastruktur/queue/bullmq/bulk.types';
 import { BulkService } from 'src/infrastruktur/queue/bullmq/bulk.service';
+import { AuthenticatedRequest } from 'src/shared/guards/access-token.guard';
 @Injectable()
 export class PreviewBulkUserUseCase {
   constructor(
@@ -28,12 +28,12 @@ export class PreviewBulkUserUseCase {
     private readonly userPolicy: UserPolicy,
   ) {}
 
-  async execute(file: UploadedBulkFile, auth: AuthPayload) {
+  async execute(file: UploadedBulkFile, request: AuthenticatedRequest) {
     if (!file) {
       throw new BadRequestException('File wajib diupload');
     }
-
-    const actor = await this.userRepository.findRoleByUserId(auth.sub);
+    const activeMitraId = request.session.activeMitraId;
+    const actor = await this.userRepository.findRoleByUserId(request.auth.sub);
 
     if (!actor) {
       throw new NotFoundException('User tidak ditemukan');
@@ -41,16 +41,19 @@ export class PreviewBulkUserUseCase {
 
     const rows = await this.fileParserService.parse<CreateUserDto>(file);
 
-    const preparedRows = rows.map((row) => this.applyActorDefaults(row, actor));
+    const preparedRows = rows.map((row) =>
+      this.applyActorDefaults(row, activeMitraId ?? undefined),
+    );
     const validatedRows = await this.authorizeRows(
-      auth.sub,
+      request.auth.sub,
       actor,
       this.validator.validate(preparedRows),
+      activeMitraId ?? undefined,
     );
 
     const job = await this.bulkService.createBulkUploadJob(
       file.originalname,
-      auth.sub,
+      request.auth.sub,
       validatedRows,
     );
 
@@ -64,19 +67,20 @@ export class PreviewBulkUserUseCase {
 
   private applyActorDefaults(
     row: CreateUserDto,
-    actor: NonNullable<Awaited<ReturnType<UserRepository['findRoleByUserId']>>>,
+    activeMitraId?: string,
   ): CreateUserDto {
-    if (
-      actor.mitraRoles?.role.code !== 'AKADEMIK' ||
-      !actor.mitraRoles.mitraId
-    ) {
+    if (!activeMitraId) {
       return row;
     }
 
     return {
       ...row,
       scope: 'MITRA',
-      mitraId: actor.mitraRoles.mitraId,
+      mitraRoles:
+        row.mitraRoles?.map((role) => ({
+          ...role,
+          mitraId: activeMitraId ?? role.mitraId,
+        })) ?? [],
     };
   }
 
@@ -84,6 +88,7 @@ export class PreviewBulkUserUseCase {
     actorId: string,
     actor: NonNullable<Awaited<ReturnType<UserRepository['findRoleByUserId']>>>,
     rows: ValidationResult<CreateUserDto>[],
+    activeMitraId?: string,
   ) {
     const checkedContexts = new Set<string>();
 
@@ -101,6 +106,7 @@ export class PreviewBulkUserUseCase {
             actor,
             data,
             checkedContexts,
+            activeMitraId,
           );
 
           return row;
@@ -122,11 +128,16 @@ export class PreviewBulkUserUseCase {
   async validateImportAccess(
     actorId: string,
     actor: NonNullable<Awaited<ReturnType<UserRepository['findRoleByUserId']>>>,
-
     data: CreateUserDto,
     checkedContexts: Set<string>,
+    activeMitraId?: string,
   ) {
-    const contextKey = `${data.scope}:${data.mitraId ?? ''}`;
+    const primaryAssignment = data.mitraRoles?.[0];
+
+    const contextKey =
+      data.scope === 'MITRA'
+        ? `${data.scope}:${primaryAssignment?.mitraId ?? ''}`
+        : data.scope;
 
     if (!checkedContexts.has(contextKey)) {
       await this.rolesPermissionService.hasPermission(actorId, {
@@ -135,21 +146,28 @@ export class PreviewBulkUserUseCase {
             ? userPermisionsCode.createMitraUser
             : userPermisionsCode.createInsidiaUser,
         scope: data.scope,
-        mitraId: data.scope === 'MITRA' ? data.mitraId : undefined,
+        mitraId:
+          data.scope === 'MITRA' ? primaryAssignment?.mitraId : undefined,
         requireMitraContext: data.scope === 'MITRA',
       });
 
       checkedContexts.add(contextKey);
     }
 
-    this.userPolicy.canCreate(actor, {
-      targetRoleCode:
-        data.scope === 'MITRA' ? (data.mitraRole ?? null) : (data.role ?? null),
-      targetScope: data.scope,
-    });
+    this.userPolicy.canCreate(
+      actor,
+      {
+        targetRoleCode:
+          data.scope === 'MITRA'
+            ? (primaryAssignment?.roleCode ?? null)
+            : (data.role ?? null),
+        targetScope: data.scope,
+      },
+      activeMitraId ?? undefined,
+    );
 
-    if (data.scope === 'MITRA' && data.mitraId) {
-      this.userPolicy.canManageMitraUser(data.mitraId, actor);
+    if (data.scope === 'MITRA' && primaryAssignment?.mitraId) {
+      this.userPolicy.canManageMitraUser(primaryAssignment.mitraId, actor);
     }
   }
 }

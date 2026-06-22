@@ -45,6 +45,20 @@ export class AuthRepository {
     });
   }
 
+  findUserWithRolesById(id: string) {
+    return this.prisma.userMitraRole.findMany({
+      where: { userId: id },
+      select: {
+        mitraId: true,
+        role: {
+          select: {
+            id: true,
+            code: true,
+          },
+        },
+      },
+    });
+  }
   createEmailUser(normalizedEmail: string) {
     return this.prisma.user.create({
       data: {

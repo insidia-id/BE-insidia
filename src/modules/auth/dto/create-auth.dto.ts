@@ -1,16 +1,9 @@
 import { z } from 'zod';
-
+import {
+  optionalNullableStringSchema,
+  optionalNullableDateSchema,
+} from '../../../shared/zod/zod.schemas';
 const emailSchema = z.string().trim().toLowerCase().email('Email tidak valid');
-
-const optionalNullableStringSchema = z.preprocess(
-  (value) => (value === '' ? null : value),
-  z.string().trim().min(1).nullable().optional(),
-);
-
-const optionalDateSchema = z.preprocess(
-  (value) => (value === '' || value === null ? undefined : value),
-  z.coerce.date().optional(),
-);
 
 export const requestOtpSchema = z.object({
   email: emailSchema,
@@ -64,7 +57,7 @@ export const googleExchangeSchema = z.object({
   email: emailSchema,
   name: optionalNullableStringSchema,
   image: optionalNullableStringSchema,
-  emailVerified: optionalDateSchema,
+  emailVerified: optionalNullableDateSchema,
   account: googleExchangeAccountSchema,
 });
 

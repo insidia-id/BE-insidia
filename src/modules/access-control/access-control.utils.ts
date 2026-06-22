@@ -1,5 +1,4 @@
 import { RoleScope } from '@prisma/client';
-import { ProfileUser } from '../auth/auth.repository.types';
 
 export const SYSTEM_INSIDIA_ROLES = [
   {
@@ -67,43 +66,87 @@ export const SYSTEM_ROLE_SEEDS = [
   ...SYSTEM_INSIDIA_ROLES,
   ...SYSTEM_MITRA_ROLES,
 ] as const;
-
+export type PermissionCode = {
+  permission: {
+    code: string;
+  };
+};
+export type RoleWithPermissions = {
+  code: string;
+  permissions?: PermissionCode[];
+};
+export type MitraRolePermission = {
+  mitraId: string;
+  permission: {
+    code: string;
+  };
+};
 export type InsidiaAccessCarrier = {
   insidiaRole?: {
-    role?: {
-      code: string;
-      permissions?: Array<{
-        permission: {
-          code: string;
-        };
-      }>;
-    } | null;
+    role?: RoleWithPermissions | null;
   } | null;
 };
+function mapProfile(
+  mitraRole: NonNullable<MitraAccessCarrier['mitraRoles']>[number],
+) {
+  switch (mitraRole.role.code) {
+    case 'AKADEMIK':
+      return mitraRole.academicProfile ?? undefined;
+
+    case 'GURU':
+      return mitraRole.guruProfile ?? undefined;
+
+    case 'MURID':
+      return mitraRole.muridProfile ?? undefined;
+
+    case 'WALI_MURID':
+      return mitraRole.waliProfile ?? undefined;
+
+    default:
+      return undefined;
+  }
+}
 export type MitraAccessCarrier = {
-  mitraRoles?: {
-    mitraId?: string;
-    role: {
-      code: string;
-      permissions?: Array<{
-        permission: {
-          code: string;
+  mitraRoles?:
+    | {
+        mitraId?: string;
+
+        role: RoleWithPermissions & {
+          mitraRolePermissions?: MitraRolePermission[];
         };
-      }>;
-      mitraRolePermissions?: Array<{
-        mitraId: string;
-        permission: {
-          code: string;
+
+        mitra?: {
+          id: string;
+          name: string;
+          slug: string;
         };
-      }>;
-    };
-    mitra: {
-      id: string;
-      name: string;
-      slug: string;
-    };
-  } | null;
+
+        academicProfile?: {
+          position?: string | null;
+          division?: string | null;
+          note?: string | null;
+        } | null;
+
+        guruProfile?: {
+          nip?: string | null;
+          subject?: string | null;
+          bio?: string | null;
+        } | null;
+
+        muridProfile?: {
+          nis?: string | null;
+          kelas?: string | null;
+          jurusan?: string | null;
+        } | null;
+
+        waliProfile?: {
+          pekerjaan?: string | null;
+          alamat?: string | null;
+        } | null;
+      }[]
+    | null;
 };
+
 export function normalizeRoleCode(code: string) {
   return code.trim().toUpperCase().replace(/\s+/g, '_');
 }
@@ -111,6 +154,7 @@ export function normalizeRoleCode(code: string) {
 export function getInsidiaRoleCode(entity: InsidiaAccessCarrier) {
   return entity.insidiaRole?.role?.code ?? null;
 }
+
 export function getInsidiaPermissionCodes(entity: InsidiaAccessCarrier) {
   return (
     entity.insidiaRole?.role?.permissions?.map(
@@ -118,31 +162,45 @@ export function getInsidiaPermissionCodes(entity: InsidiaAccessCarrier) {
     ) ?? []
   );
 }
+
 export function getMitraPermissionCodes(entity: MitraAccessCarrier) {
   return [
-    ...(entity.mitraRoles?.role.permissions?.map(
-      ({ permission }) => permission.code,
-    ) ?? []),
+    ...new Set(
+      entity.mitraRoles?.flatMap((mitraRole) => [
+        ...(mitraRole.role.permissions?.map(
+          ({ permission }) => permission.code,
+        ) ?? []),
 
-    ...(entity.mitraRoles?.role.mitraRolePermissions
-      ?.filter((item) => item.mitraId === entity.mitraRoles?.mitraId)
-      .map(({ permission }) => permission.code) ?? []),
+        ...(mitraRole.role.mitraRolePermissions
+          ?.filter((item) => item.mitraId === mitraRole.mitraId)
+          .map(({ permission }) => permission.code) ?? []),
+      ]) ?? [],
+    ),
   ];
 }
+
 export function getMitraRoles(entity: MitraAccessCarrier) {
-  return {
-    roleCode: entity.mitraRoles?.role.code ?? null,
-    mitraId: entity.mitraRoles?.mitraId ?? null,
-    mitraName: entity.mitraRoles?.mitra.name ?? null,
-    mitraSlug: entity.mitraRoles?.mitra.slug ?? null,
-  };
+  return (
+    entity.mitraRoles?.map((item) => ({
+      roleCode: item.role.code ?? null,
+      mitraId: item.mitraId ?? null,
+      mitraName: item.mitra?.name ?? null,
+      mitraSlug: item.mitra?.slug ?? null,
+      profile: mapProfile(item),
+    })) ?? []
+  );
 }
+
 export function withMitraAccess<T extends MitraAccessCarrier>(entity: T) {
   return {
+    ...entity,
+
     mitraRoles: getMitraRoles(entity),
+
     permissions: getMitraPermissionCodes(entity),
   };
 }
+
 export function withInsidiaAccess<T extends InsidiaAccessCarrier>(entity: T) {
   return {
     ...entity,
@@ -150,26 +208,3 @@ export function withInsidiaAccess<T extends InsidiaAccessCarrier>(entity: T) {
     permissions: getInsidiaPermissionCodes(entity),
   };
 }
-// export function getProfileByRole(user: ProfileUser) {
-//   const roleCode = getInsidiaRoleCode(user);
-
-//   switch (roleCode) {
-//     case 'GURU':
-//       return user.guruProfile;
-
-//     case 'MURID':
-//       return user.muridProfile;
-
-//     case 'WALI_MURID':
-//       return user.waliProfile;
-
-//     case 'MENTOR':
-//       return user.mentorProfile;
-
-//     case 'AKADEMIK':
-//       return user.academicProfile;
-
-//     default:
-//       return null;
-//   }
-// }

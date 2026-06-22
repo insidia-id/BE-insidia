@@ -1,49 +1,82 @@
 import { z } from 'zod';
-import { normalizeRoleCode } from '../../access-control/access-control.utils';
 import { RoleScope } from '@prisma/client';
+import {
+  InsidiaRole,
+  MitraRole,
+  Gender,
+  Religion,
+  userStatusValues,
+} from '../../../shared/enums/enums';
+import {
+  optionalNullableDateSchema,
+  optionalNullableStringSchema,
+} from '../../../shared/zod/zod.schemas';
 
-const userStatusValues = ['ACTIVE', 'BANNED'] as const;
+export const roleProfileSchema = z.object({
+  nip: optionalNullableStringSchema,
+  subject: optionalNullableStringSchema,
+  bio: optionalNullableStringSchema,
+  nis: optionalNullableStringSchema,
+  kelas: optionalNullableStringSchema,
+  jurusan: optionalNullableStringSchema,
+  waliId: optionalNullableStringSchema,
+  pekerjaan: optionalNullableStringSchema,
+  alamat: optionalNullableStringSchema,
+  position: optionalNullableStringSchema,
+  division: optionalNullableStringSchema,
+  note: optionalNullableStringSchema,
+});
 
-export const optionalNullableStringSchema = z.preprocess(
-  (value) => (value === '' ? null : value),
-  z.string().trim().min(1).nullable().optional(),
-);
-
-export const roleCodeSchema = z
-  .string()
-  .trim()
-  .min(1)
-  .transform(normalizeRoleCode);
-
-export const createUserSchema = z.object({
+export const mitraRoleItemSchema = z.object({
+  mitraId: z.string().trim().min(1, 'mitra wajib dipilih'),
+  roleCode: z.enum(MitraRole, {
+    message: 'role mitra tidak valid',
+  }),
+  profile: roleProfileSchema.optional(),
+});
+export const baseUserSchema = z.object({
   email: z.string().trim().email(),
   name: optionalNullableStringSchema,
   phone: optionalNullableStringSchema,
-  role: roleCodeSchema.optional().default('USER'),
-  mitraRole: roleCodeSchema.optional(),
-  scope: z.enum(RoleScope, 'ruang lingkup permission tidak valid'),
+  nik: optionalNullableStringSchema,
+  birthPlace: optionalNullableStringSchema,
+  birthDate: optionalNullableDateSchema,
+  gender: z
+    .enum(Gender, {
+      message: 'jenis kelamin tidak valid',
+    })
+    .optional(),
+  religion: z
+    .enum(Religion, {
+      message: 'agama tidak valid',
+    })
+    .optional(),
+  role: z
+    .enum(InsidiaRole, {
+      message: 'role insidia tidak valid',
+    })
+    .optional(),
+  mitraRoles: z.array(mitraRoleItemSchema).optional(),
+
+  scope: z.enum(RoleScope, {
+    message: 'ruang lingkup permission tidak valid',
+  }),
   status: z.enum(userStatusValues).optional().default('ACTIVE'),
-  mitraId: z.string().trim().min(1).optional(),
-}).superRefine((value, ctx) => {
+});
+
+export const createUserSchema = baseUserSchema.superRefine((value, ctx) => {
   if (value.scope !== 'MITRA') {
     return;
   }
 
-  if (!value.mitraId) {
+  if (!value.mitraRoles || value.mitraRoles.length === 0) {
     ctx.addIssue({
       code: 'custom',
-      message: 'mitraId wajib diisi untuk user scope MITRA',
-      path: ['mitraId'],
-    });
-  }
-
-  if (!value.mitraRole) {
-    ctx.addIssue({
-      code: 'custom',
-      message: 'mitraRole wajib diisi untuk user scope MITRA',
-      path: ['mitraRole'],
+      message: 'mitraRoles wajib diisi untuk user scope MITRA',
+      path: ['mitraRoles'],
     });
   }
 });
-
+export type MitraRoleItemInput = z.infer<typeof mitraRoleItemSchema>;
+export type MitraRoleProfileInput = z.infer<typeof roleProfileSchema>;
 export type CreateUserDto = z.infer<typeof createUserSchema>;

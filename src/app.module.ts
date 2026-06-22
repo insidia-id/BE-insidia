@@ -11,6 +11,7 @@ import { PermissionsModule } from './modules/permissions/permissions.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { UserModule } from './modules/user/user.module';
 import { QueueModule } from './infrastruktur/queue/queue.module';
+import { RedisModule } from './infrastruktur/redis/redis.module';
 @Module({
   imports: [
     AuthModule,
@@ -23,6 +24,7 @@ import { QueueModule } from './infrastruktur/queue/queue.module';
     CourseModule,
     CourseModulesModule,
     MediaModule,
+    RedisModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -6,7 +6,7 @@ import {
   getMitraRoles,
 } from '../access-control/access-control.utils';
 import type { ProfileUser, SessionUser } from './auth.repository.types';
-import type { AuthUserResponse } from './auth.types';
+import type { AuthUserResponse, UserSession } from './auth.types';
 
 export function resolveAccessProfile(user: SessionUser) {
   const role = getInsidiaRoleCode(user);
@@ -35,7 +35,13 @@ export function serializeAuthUser(user: SessionUser): AuthUserResponse {
     permissions: accessProfile.permissions,
   };
 }
-export function serializeProfileUser(user: ProfileUser) {
+export function serializeProfileUser({
+  user,
+  session,
+}: {
+  user: ProfileUser;
+  session: UserSession;
+}) {
   return {
     id: user.id,
     email: user.email,
@@ -48,6 +54,8 @@ export function serializeProfileUser(user: ProfileUser) {
       ...(getInsidiaPermissionCodes(user) ?? []),
       ...(getMitraPermissionCodes(user) ?? []),
     ],
+    activeMitraId: session.activeMitraId,
+    activeRoleCode: session.activeRoleCode,
   };
 }
 export type ProfileResponse = ReturnType<typeof serializeProfileUser>;

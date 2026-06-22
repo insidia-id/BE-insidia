@@ -3,7 +3,7 @@ import { ForbiddenException, Injectable } from '@nestjs/common';
 export type MitraActorContext = {
   userId: string;
   isSuperAdmin: boolean;
-  mitraRoleCode: string | null;
+  mitraRoleCode: string[] | null;
 };
 
 @Injectable()
@@ -17,7 +17,10 @@ export class MitraAcademicPolicy {
   }
 
   canManageAcademic(actor: MitraActorContext) {
-    if (actor.isSuperAdmin || actor.mitraRoleCode === 'AKADEMIK') {
+    if (
+      actor.isSuperAdmin ||
+      actor.mitraRoleCode?.find((code) => code === 'AKADEMIK')
+    ) {
       return true;
     }
 
@@ -27,7 +30,10 @@ export class MitraAcademicPolicy {
   }
 
   canUseTeacherFeatures(actor: MitraActorContext) {
-    if (actor.isSuperAdmin || actor.mitraRoleCode === 'GURU') {
+    if (
+      actor.isSuperAdmin ||
+      actor.mitraRoleCode?.find((code) => code === 'GURU')
+    ) {
       return true;
     }
 
@@ -35,7 +41,10 @@ export class MitraAcademicPolicy {
   }
 
   canUseStudentFeatures(actor: MitraActorContext) {
-    if (actor.isSuperAdmin || actor.mitraRoleCode === 'MURID') {
+    if (
+      actor.isSuperAdmin ||
+      actor.mitraRoleCode?.find((code) => code === 'MURID')
+    ) {
       return true;
     }
 
@@ -45,9 +54,9 @@ export class MitraAcademicPolicy {
   canViewMaterials(actor: MitraActorContext) {
     if (
       actor.isSuperAdmin ||
-      actor.mitraRoleCode === 'AKADEMIK' ||
-      actor.mitraRoleCode === 'GURU' ||
-      actor.mitraRoleCode === 'MURID'
+      actor.mitraRoleCode?.find((code) => code === 'AKADEMIK') ||
+      actor.mitraRoleCode?.find((code) => code === 'GURU') ||
+      actor.mitraRoleCode?.find((code) => code === 'MURID')
     ) {
       return true;
     }

@@ -10,7 +10,6 @@ export class PermissionBulkImportProcessor extends WorkerHost {
     private readonly processBulkPermissionImportUseCase: ProcessBulkPermissionImportUseCase,
   ) {
     super();
-    console.log('PermissionBulkImportProcessor initialized');
   }
 
   async process(job: Job) {

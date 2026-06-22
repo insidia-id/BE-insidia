@@ -10,10 +10,13 @@ import {
   CreateModulePermissionDto,
   CreatePermissionDto,
 } from './dto/create-permission.dto';
-import { UpdatePermissionDto } from './dto/update-permission.dto';
+import {
+  UpdateModulePermissionDto,
+  UpdatePermissionDto,
+} from './dto/update-permission.dto';
 import { PermissionsRepository } from './permissions.repository';
 import { RolesPermissionService } from '../roles/roles.permission';
-import { AuthPayload } from '../auth/auth.types';
+import { AuthPayload, UserSession } from '../auth/auth.types';
 import { permissionCodes } from './permissions.constants';
 import {
   mapCreateModulePermissionData,
@@ -43,8 +46,9 @@ export class PermissionsService {
   async findAllModulePermissions(
     auth: AuthPayload,
     scope: RoleScope,
-    mitraId?: string,
+    session: UserSession,
   ) {
+    const activeMitraId = session.activeMitraId;
     scope === 'MITRA'
       ? await this.rolesPermissionService.hasAnyPermission(auth.sub, {
           permission: [
@@ -52,7 +56,7 @@ export class PermissionsService {
             permissionCodes.manageMitraPermissions,
           ],
           scope,
-          mitraId,
+          mitraId: activeMitraId ?? undefined,
         })
       : await this.rolesPermissionService.hasPermission(auth.sub, {
           permission: permissionCodes.viewInsidiaPermissions,
@@ -64,7 +68,7 @@ export class PermissionsService {
   }
   async updateModulePermission(
     id: string,
-    updateModulePermissionDto: UpdatePermissionDto,
+    updateModulePermissionDto: UpdateModulePermissionDto,
   ) {
     try {
       const updatedModulePermission =

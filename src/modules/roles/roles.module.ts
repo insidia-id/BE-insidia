@@ -15,7 +15,7 @@ import { UserModule } from '../user/user.module';
   imports: [
     PrismaModule,
     forwardRef(() => PermissionsModule),
-    AuthModule,
+    forwardRef(() => AuthModule),
     forwardRef(() => UserModule),
   ],
   controllers: [RolesController],

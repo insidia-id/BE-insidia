@@ -45,9 +45,13 @@ export class CourseController {
     @Req() request: AuthenticatedRequest,
     @Query('scope') scope: RoleScope,
     @Query('status') status?: CourseStatus,
-    @Query('mitraId') mitraId?: string,
   ) {
-    return this.courseService.findAll(request.auth, scope, status, mitraId);
+    return this.courseService.findAll(
+      request.auth,
+      scope,
+      status,
+      request.session,
+    );
   }
 
   @Get(':id')

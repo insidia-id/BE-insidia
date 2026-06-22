@@ -6,7 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { CourseStatus, Prisma, RoleScope } from '@prisma/client';
-import type { AuthPayload } from '../auth/auth.types';
+import type { AuthPayload, UserSession } from '../auth/auth.types';
 import { RolesPermissionService } from '../roles/roles.permission';
 import { MitraAcademicAccessService } from '../mitra-academic/shared/mitra-academic-access.service';
 import { coursePermissionCodes } from './course.constants';
@@ -78,27 +78,28 @@ export class CourseService {
     auth: AuthPayload,
     scope: RoleScope,
     status?: CourseStatus,
-    mitraId?: string,
+    session?: UserSession,
   ) {
     const actorId = this.getActorId(auth);
     const isMitraScope = scope === 'MITRA';
     const permissionCode = isMitraScope
       ? coursePermissionCodes.viewMitra
       : coursePermissionCodes.view;
-
+    const activeMitraId = session?.activeMitraId;
     const actor = await this.rolesPermissionService.hasPermission(actorId, {
       permission: permissionCode,
       scope,
-      mitraId: isMitraScope ? mitraId : undefined,
+      mitraId: isMitraScope ? activeMitraId! : undefined,
       requireMitraContext: isMitraScope ? true : false,
     });
     const canViewAllMitraCourses =
-      scope === 'MITRA' && actor.mitraRoles?.role.code === 'AKADEMIK';
+      scope === 'MITRA' &&
+      actor.mitraRoles?.find((r) => r.role.code === 'AKADEMIK');
 
     const courses = await this.courseRepository.findAll({
       scope,
       status,
-      mitraId,
+      mitraId: activeMitraId,
 
       creatorId:
         actor.insidiaRole?.role.code === 'SUPER_ADMIN' ||

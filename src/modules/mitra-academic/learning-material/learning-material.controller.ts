@@ -17,6 +17,7 @@ import {
   AccessTokenGuard,
   type AuthenticatedRequest,
 } from '../../../shared/guards/access-token.guard';
+import { requireActiveMitraId } from '../../../shared/session/active-mitra-session';
 import { ZodValidationPipe } from '../../../shared/zod/zod-validation.pipe';
 import type { UploadedMaterialFile } from './material.types';
 import {
@@ -36,38 +37,38 @@ const materialFileInterceptor = FileInterceptor('file', {
 });
 
 @UseGuards(AccessTokenGuard)
-@Controller('mitras/:mitraId/academic/materi')
+@Controller('mitras/active/academic/materi')
 export class LearningMaterialController {
   constructor(private readonly service: LearningMaterialService) {}
 
   @Get()
   findLearningMaterials(
-    @Param('mitraId') mitraId: string,
     @Query(new ZodValidationPipe(learningMaterialListQuerySchema))
     query: LearningMaterialListQueryDto,
     @Req() request: AuthenticatedRequest,
   ) {
+    const mitraId = requireActiveMitraId(request);
     return this.service.findLearningMaterials(mitraId, request.auth, query);
   }
 
   @Get(':id')
   findLearningMaterial(
-    @Param('mitraId') mitraId: string,
     @Param('id') id: string,
     @Req() request: AuthenticatedRequest,
   ) {
+    const mitraId = requireActiveMitraId(request);
     return this.service.findLearningMaterial(mitraId, id, request.auth);
   }
 
   @Post()
   @UseInterceptors(materialFileInterceptor)
   createLearningMaterial(
-    @Param('mitraId') mitraId: string,
     @Body(new ZodValidationPipe(createLearningMaterialSchema))
     dto: CreateLearningMaterialDto,
     @UploadedFile() file: UploadedMaterialFile | undefined,
     @Req() request: AuthenticatedRequest,
   ) {
+    const mitraId = requireActiveMitraId(request);
     return this.service.createLearningMaterial(
       mitraId,
       dto,
@@ -78,21 +79,21 @@ export class LearningMaterialController {
 
   @Put(':id')
   updateLearningMaterial(
-    @Param('mitraId') mitraId: string,
     @Param('id') id: string,
     @Body(new ZodValidationPipe(updateLearningMaterialSchema))
     dto: UpdateLearningMaterialDto,
     @Req() request: AuthenticatedRequest,
   ) {
+    const mitraId = requireActiveMitraId(request);
     return this.service.updateLearningMaterial(mitraId, id, dto, request.auth);
   }
 
   @Delete(':id')
   removeLearningMaterial(
-    @Param('mitraId') mitraId: string,
     @Param('id') id: string,
     @Req() request: AuthenticatedRequest,
   ) {
+    const mitraId = requireActiveMitraId(request);
     return this.service.removeLearningMaterial(mitraId, id, request.auth);
   }
 }

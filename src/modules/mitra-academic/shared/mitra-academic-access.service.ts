@@ -406,17 +406,19 @@ export class MitraAcademicAccessService {
           code?: string | null;
         } | null;
       } | null;
-      mitraRoles?: {
-        role: {
-          code: string;
-        };
-      } | null;
+      mitraRoles?:
+        | {
+            role: {
+              code: string;
+            };
+          }[]
+        | null;
     },
   ): MitraActorContext {
     return {
       userId,
       isSuperAdmin: actor.insidiaRole?.role?.code === 'SUPER_ADMIN',
-      mitraRoleCode: actor.mitraRoles?.role.code ?? null,
+      mitraRoleCode: actor.mitraRoles?.map((r) => r.role.code) || null,
     };
   }
 }

@@ -13,12 +13,15 @@ import { BulkUserValidatorService } from './bulk-upload/bulk-user-validator';
 import { PreviewBulkUserUseCase } from './bulk-upload/preview-bulk-user';
 import { EnqueueBulkUserImportUseCase } from './bulk-upload/enqueue-bulk-user-import';
 import { ProcessBulkUserImportUseCase } from './bulk-upload/process-bulk-user-import';
+import { BulkUserTemplateGeneratorService } from './bulk-upload/bulk-user-template-generator.service';
+import { RedisModule } from 'src/infrastruktur/redis/redis.module';
 @Module({
   imports: [
     PrismaModule,
     forwardRef(() => RolesModule),
-    AuthModule,
+    forwardRef(() => AuthModule),
     forwardRef(() => BullmqModule),
+    forwardRef(() => RedisModule),
   ],
   controllers: [UserController],
   providers: [
@@ -28,6 +31,7 @@ import { ProcessBulkUserImportUseCase } from './bulk-upload/process-bulk-user-im
     RolesGuard,
     UserPolicy,
     BulkUserValidatorService,
+    BulkUserTemplateGeneratorService,
     PreviewBulkUserUseCase,
     EnqueueBulkUserImportUseCase,
     ProcessBulkUserImportUseCase,

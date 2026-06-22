@@ -1,4 +1,5 @@
 import { Prisma, RoleScope } from '@prisma/client';
+import { RoleCode } from './user.types';
 
 export const adminRoles = ['SUPER_ADMIN', 'ADMIN'] as const;
 export const adminRoleSet = new Set<string>(adminRoles);
@@ -11,51 +12,49 @@ export const AkademikAllowedTargetRoleCodes = new Set([
 ]);
 export type UserFilter = 'all' | 'available' | 'deleted';
 export type Scope = 'INSIDIA' | 'MITRA';
-
-export function getUserRoleScopeWhere(
-  scope: RoleScope = RoleScope.INSIDIA,
-  mitraId?: string,
+export function getUserFilterWhere(
+  filter: UserFilter = 'available',
 ): Prisma.UserWhereInput {
-  if (scope === RoleScope.INSIDIA) {
+  if (filter === 'deleted') {
     return {
-      insidiaRole: {
-        is: {
-          role: {
-            scope: RoleScope.INSIDIA,
-          },
-        },
+      deletedAt: {
+        not: null,
       },
     };
   }
 
+  if (filter === 'all') {
+    return {};
+  }
+
   return {
-    mitraRoles: {
-      is: {
-        ...(mitraId ? { mitraId } : {}),
-        role: {
-          scope,
-        },
-      },
-    },
+    deletedAt: null,
   };
 }
-
 export function getUserRoleWhereByScope({
   scope,
-  roles,
+  mitraId,
+  roleCode,
+  excludeRoles,
 }: {
   scope: RoleScope;
-  roles?: string[];
+  mitraId?: string | null;
+  roleCode?: RoleCode;
+  excludeRoles?: RoleCode[];
 }): Prisma.UserWhereInput {
   const roleWhere: Prisma.RoleWhereInput = {
     scope,
-    ...(roles?.length
+    ...(roleCode
       ? {
-          code: {
-            notIn: roles,
-          },
+          code: roleCode,
         }
-      : {}),
+      : excludeRoles?.length
+        ? {
+            code: {
+              notIn: excludeRoles,
+            },
+          }
+        : {}),
   };
 
   if (scope === RoleScope.INSIDIA) {
@@ -70,12 +69,14 @@ export function getUserRoleWhereByScope({
 
   return {
     mitraRoles: {
-      is: {
+      some: {
+        ...(mitraId ? { mitraId } : {}),
         role: roleWhere,
       },
     },
   };
 }
+
 export const userRole = {
   insidiaRole: {
     select: {
@@ -116,6 +117,10 @@ const userMitraRoleSelect = {
   id: true,
   roleId: true,
   mitraId: true,
+  guruProfile: true,
+  muridProfile: true,
+  waliProfile: true,
+  academicProfile: true,
   role: {
     select: {
       id: true,
@@ -152,6 +157,10 @@ export const adminUserListSelect = {
       id: true,
       roleId: true,
       mitraId: true,
+      guruProfile: true,
+      muridProfile: true,
+      waliProfile: true,
+      academicProfile: true,
       role: {
         select: {
           id: true,

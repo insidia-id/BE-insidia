@@ -17,12 +17,13 @@ import {
   type AuthenticatedRequest,
 } from '../../shared/guards/access-token.guard';
 import { Roles, RolesGuard } from '../../shared/guards/admin-access.guard';
+import { requireActiveMitraId } from '../../shared/session/active-mitra-session';
 import { ZodValidationPipe } from '../../shared/zod/zod-validation.pipe';
 import {
   assignRolePermissionsSchema,
   type AssignRolePermissionsDto,
 } from './dto/assign-role-permissions.dto';
-import { createRoleSchema, type CreateRoleDto } from './dto/create-role.dto';
+import { BaseRoleSchema, type CreateRoleDto } from './dto/create-role.dto';
 import { updateRoleSchema, type UpdateRoleDto } from './dto/update-role.dto';
 import { RolesService } from './roles.service';
 
@@ -35,7 +36,7 @@ export class RolesController {
   @Roles('SUPER_ADMIN')
   createRole(
     @Req() request: AuthenticatedRequest,
-    @Body(new ZodValidationPipe(createRoleSchema))
+    @Body(new ZodValidationPipe(BaseRoleSchema))
     createRoleDto: CreateRoleDto,
   ) {
     return this.rolesService.createRole(request.auth, createRoleDto);
@@ -46,13 +47,12 @@ export class RolesController {
     @Req() request: AuthenticatedRequest,
     @Query('scope') scope: RoleScope,
     @Query('includeDeleted') includeDeleted?: string,
-    @Query('mitraId') mitraId?: string,
   ) {
     return this.rolesService.findAllRoles(
       request.auth,
       scope,
       includeDeleted === 'true',
-      mitraId,
+      request.session,
     );
   }
 
@@ -90,17 +90,17 @@ export class RolesController {
     );
   }
 
-  @Put(':roleId/permissions/mitras/:mitraId')
+  @Put(':roleId/permissions/mitras/active')
   replaceMitraRolePermissions(
     @Req() request: AuthenticatedRequest,
-    @Param('mitraId') mitraId: string,
     @Param('roleId') roleId: string,
     @Body(new ZodValidationPipe(assignRolePermissionsSchema))
     assignRolePermissionsDto: AssignRolePermissionsDto,
   ) {
+    requireActiveMitraId(request);
     return this.rolesService.replaceMitraRolePermissions(
       request.auth,
-      mitraId,
+      request.session,
       roleId,
       assignRolePermissionsDto,
     );

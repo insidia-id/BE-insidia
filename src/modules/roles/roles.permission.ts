@@ -8,7 +8,7 @@ import { UserRepository } from '../user/user.repository';
 type hasPermissionContext = {
   scope: 'INSIDIA' | 'MITRA';
   permission: string;
-  mitraId?: string;
+  mitraId?: string | null;
   requireMitraContext?: boolean;
 };
 @Injectable()
@@ -29,8 +29,12 @@ export class RolesPermissionService {
         permissions: ['*'],
       };
     }
-    const actorMitraId = actor.mitraRoles?.mitraId ?? null;
-    const mitraRole = actor.mitraRoles?.role;
+    const actorMitraId = actor.mitraRoles?.find(
+      (item) => item.mitraId === context.mitraId,
+    )?.mitraId;
+    const mitraRole = actor.mitraRoles?.find(
+      (item) => item.mitraId === context.mitraId,
+    )?.role;
     if (
       context.scope === 'MITRA' &&
       context.mitraId &&
@@ -56,7 +60,7 @@ export class RolesPermissionService {
           ? mitraRole?.id
           : null;
     if (!roleId) {
-      throw new NotFoundException('Role tidak ditemukan');
+      throw new NotFoundException('Role tidak ditemukan untuk user ini');
     }
 
     const [globalPermissions, mitraPermissions] = await Promise.all([

@@ -35,7 +35,6 @@ export class PreviewBulkPermissionUseCase {
     );
 
     const checkedRows = await this.applyDatabaseChecks(validatedRows);
-    console.log('Checked Rows:', checkedRows);
     const job = await this.bulkService.createBulkUploadJob(
       file.originalname,
       auth.sub,

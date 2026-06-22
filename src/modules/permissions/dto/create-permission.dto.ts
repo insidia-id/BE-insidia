@@ -1,14 +1,15 @@
 import { z } from 'zod';
-import { nullableTrimmedStringSchema } from '../../access-control/dto/shared-access.dto';
-export const createModulePermissionSchema = z.object({
+import { optionalNullableStringSchema } from '../../../shared/zod/zod.schemas';
+import { RoleScope } from '../../../shared/enums/enums';
+export const BaseCreateModulePermissionSchema = z.object({
   module: z.string().trim().min(1, 'nama module permission wajib diisi'),
-  scope: z.enum(['INSIDIA', 'MITRA'], {
+  scope: z.enum(RoleScope, {
     message: 'ruang lingkup permission tidak valid',
   }),
-  description: nullableTrimmedStringSchema,
+  description: optionalNullableStringSchema,
 });
 
-export const createPermissionSchema = z.object({
+export const BaseCreatePermissionSchema = z.object({
   moduleId: z.string().trim().min(1, 'id module permission wajib diisi'),
   name: z.string().trim().min(1, 'nama permission wajib diisi'),
 
@@ -21,7 +22,7 @@ export const createPermissionSchema = z.object({
       'kode permission harus mengikuti format resource.action.scope, contoh: user.update.insidia',
     ),
 
-  description: nullableTrimmedStringSchema,
+  description: optionalNullableStringSchema,
 });
 
 export const bulkPermissionSchema = z.object({
@@ -29,7 +30,7 @@ export const bulkPermissionSchema = z.object({
 
   moduleDescription: z.string().optional(),
 
-  scope: z.enum(['INSIDIA', 'MITRA'], {
+  scope: z.enum(RoleScope, {
     message: 'ruang lingkup permission tidak valid',
   }),
 
@@ -43,6 +44,6 @@ export const bulkPermissionSchema = z.object({
 export type BulkPermissionDto = z.infer<typeof bulkPermissionSchema>;
 
 export type CreateModulePermissionDto = z.infer<
-  typeof createModulePermissionSchema
+  typeof BaseCreateModulePermissionSchema
 >;
-export type CreatePermissionDto = z.infer<typeof createPermissionSchema>;
+export type CreatePermissionDto = z.infer<typeof BaseCreatePermissionSchema>;

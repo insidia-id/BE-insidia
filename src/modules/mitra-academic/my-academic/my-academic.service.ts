@@ -38,14 +38,17 @@ export class MyAcademicService {
     const term = await this.access.resolveDefaultTerm(mitraId, query);
     const termParams = toAcademicTermParams(term);
 
-    if (actor.isSuperAdmin || actor.mitraRoleCode === 'AKADEMIK') {
+    if (
+      actor.isSuperAdmin ||
+      actor.mitraRoleCode?.find((code) => ['AKADEMIK', 'ADMIN'].includes(code))
+    ) {
       const items = await this.repository.findClassGroups(mitraId);
       return items
         .filter((item) => matchesAcademicClassTerm(item, term))
         .map(serializeClassGroup);
     }
 
-    if (actor.mitraRoleCode === 'GURU') {
+    if (actor.mitraRoleCode?.find((code) => code === 'GURU')) {
       const items = await this.repository.findTeacherClassGroups({
         mitraId,
         teacherId: auth.sub,
@@ -76,12 +79,15 @@ export class MyAcademicService {
     const term = await this.access.resolveDefaultTerm(mitraId, query);
     const termParams = toAcademicTermParams(term);
 
-    if (actor.isSuperAdmin || actor.mitraRoleCode === 'AKADEMIK') {
+    if (
+      actor.isSuperAdmin ||
+      actor.mitraRoleCode?.find((code) => ['AKADEMIK', 'ADMIN'].includes(code))
+    ) {
       const items = await this.repository.findSubjects(mitraId);
       return items.map(serializeSubject);
     }
 
-    if (actor.mitraRoleCode === 'GURU') {
+    if (actor.mitraRoleCode?.find((code) => code === 'GURU')) {
       const items = await this.repository.findTeacherSubjects({
         mitraId,
         teacherId: auth.sub,

@@ -6,7 +6,7 @@ import {
   adminUserCreatedSelect,
   adminUserListSelect,
   adminUserSelect,
-  getUserRoleScopeWhere,
+  getUserFilterWhere,
   getUserRoleWhereByScope,
   UserFilter,
   userRole,
@@ -14,6 +14,7 @@ import {
 import { DuplicateUserFieldError } from './user.errors';
 import { CreateUserDto } from './dto/create-user.dto';
 import { mapBulkUploadUserUpsertData, normalizeEmail } from './user.mapper';
+import { RoleCode } from './user.types';
 
 @Injectable()
 export class UserRepository {
@@ -40,49 +41,6 @@ export class UserRepository {
     }
   }
 
-  findAllActive(scope: RoleScope = RoleScope.INSIDIA, mitraId?: string) {
-    return this.prisma.user.findMany({
-      where: {
-        deletedAt: null,
-        ...getUserRoleScopeWhere(scope, mitraId),
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      select: adminUserListSelect,
-    });
-  }
-
-  findAllByRoles({
-    filter,
-    roles,
-    scope,
-  }: {
-    filter?: UserFilter;
-    roles: string[];
-    scope: RoleScope;
-  }) {
-    const whereClause: Prisma.UserWhereInput = {
-      ...getUserRoleWhereByScope({
-        scope,
-        roles,
-      }),
-    };
-
-    if (filter === 'deleted') {
-      whereClause.deletedAt = { not: null };
-    } else if (filter !== 'all') {
-      whereClause.deletedAt = null;
-    }
-
-    return this.prisma.user.findMany({
-      where: whereClause,
-      orderBy: {
-        createdAt: 'desc',
-      },
-      select: adminUserListSelect,
-    });
-  }
   findById(id: string) {
     return this.prisma.user.findUnique({
       where: { id },
@@ -98,27 +56,83 @@ export class UserRepository {
       },
     });
   }
-  findAll(scope: RoleScope = RoleScope.INSIDIA, mitraId?: string) {
-    return this.prisma.user.findMany({
-      where: getUserRoleScopeWhere(scope, mitraId),
-      orderBy: {
-        createdAt: 'desc',
-      },
-      select: adminUserListSelect,
-    });
-  }
+  async findAll({
+    scope,
+    filter = 'available',
+    mitraId,
+    roleCode,
+    excludeRoles,
+  }: {
+    scope: RoleScope;
+    filter?: UserFilter;
+    mitraId?: string | null;
+    roleCode?: RoleCode;
+    excludeRoles?: RoleCode[];
+  }) {
+    const where: Prisma.UserWhereInput = {
+      ...getUserFilterWhere(filter),
+      ...getUserRoleWhereByScope({
+        scope,
+        mitraId,
+        roleCode,
+        excludeRoles,
+      }),
+    };
 
-  findAllDeleted(scope: RoleScope = RoleScope.INSIDIA, mitraId?: string) {
-    return this.prisma.user.findMany({
-      where: {
-        deletedAt: { not: null },
-        ...getUserRoleScopeWhere(scope, mitraId),
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      select: adminUserListSelect,
-    });
+    const [users, total] = await this.prisma.$transaction([
+      this.prisma.user.findMany({
+        where,
+        select: {
+          email: true,
+          name: true,
+          createdAt: true,
+          updatedAt: true,
+          deletedAt: true,
+          status: true,
+          id: true,
+          image: true,
+          insidiaRole: {
+            select: {
+              role: {
+                select: {
+                  id: true,
+                  code: true,
+                },
+              },
+            },
+          },
+          mitraRoles: {
+            select: {
+              mitra: {
+                select: {
+                  id: true,
+                  name: true,
+                  slug: true,
+                },
+              },
+              role: {
+                select: {
+                  id: true,
+                  code: true,
+                },
+              },
+              academicProfile: true,
+              guruProfile: true,
+              muridProfile: true,
+              waliProfile: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      }),
+
+      this.prisma.user.count({
+        where,
+      }),
+    ]);
+    return { users, total };
   }
 
   findActiveById(id: string) {
@@ -148,7 +162,29 @@ export class UserRepository {
       select: adminUserListSelect,
     });
   }
-
+  findByNik(nik: string) {
+    return this.prisma.user.findFirst({
+      where: {
+        nik,
+      },
+    });
+  }
+  findUserMitraRoleByMitraId(userId: string, mitraId: string) {
+    return this.prisma.userMitraRole.findFirst({
+      where: {
+        userId,
+        mitraId,
+      },
+      select: {
+        role: {
+          select: {
+            id: true,
+            code: true,
+          },
+        },
+      },
+    });
+  }
   async updateActive(id: string, data: Prisma.UserUpdateInput) {
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -211,9 +247,11 @@ export class UserRepository {
         deletedAt: null,
         status: UserStatus.ACTIVE,
         mitraRoles: {
-          mitraId,
-          role: {
-            code: 'AKADEMIK',
+          some: {
+            mitraId,
+            role: {
+              code: 'AKADEMIK',
+            },
           },
         },
       },

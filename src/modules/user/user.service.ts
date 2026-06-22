@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -21,63 +22,81 @@ import {
 import { UserPolicy } from './user.Policy';
 import { UserRepository } from './user.repository';
 import { RolesPermissionService } from '../roles/roles.permission';
-
+import { SessionRedisService } from 'src/infrastruktur/redis/session.redis.service';
+import { UserSession } from '../auth/auth.types';
+import { RoleCode } from './user.types';
 @Injectable()
 export class UserService {
   constructor(
     private readonly userRepository: UserRepository,
     private readonly userPolicy: UserPolicy,
     private readonly rolesPermissionService: RolesPermissionService,
+    private readonly sessionRedis: SessionRedisService,
   ) {}
 
   async create(createUserDto: CreateUserDto, auth: AuthPayload) {
+    console.log('createUserDto', createUserDto);
     const actorId = this.getActorId(auth);
 
     const permissionCode =
       createUserDto.scope === 'MITRA'
         ? userPermisionsCode.createMitraUser
         : userPermisionsCode.createInsidiaUser;
+
     const isMitraScope = createUserDto.scope === 'MITRA';
+
+    const targetMitraIds = [
+      ...new Set(createUserDto.mitraRoles?.map((item) => item.mitraId) ?? []),
+    ];
+
+    const effectiveMitraId =
+      createUserDto.scope === 'MITRA' ? targetMitraIds[0] : undefined;
+
     const actor = await this.rolesPermissionService.hasPermission(actorId, {
       permission: permissionCode,
       scope: createUserDto.scope,
       requireMitraContext: isMitraScope,
-      mitraId: isMitraScope ? createUserDto.mitraId : undefined,
+      mitraId: isMitraScope ? effectiveMitraId : undefined,
     });
-    this.userPolicy.canCreate(actor, {
-      targetRoleCode: this.getTargetRoleCodeByScope(createUserDto),
-      targetScope: createUserDto.scope,
-    });
+
+    this.userPolicy.canCreate(
+      actor,
+      {
+        targetRoleCode: this.getTargetRoleCodeByScope(createUserDto),
+        targetScope: createUserDto.scope,
+      },
+      effectiveMitraId ?? null,
+    );
     try {
       await this.ensureUniqueEmail(createUserDto.email);
       await this.ensureUniquePhone(createUserDto.phone);
+      await this.ensureUniqueNik(createUserDto.nik);
 
-      if (createUserDto.mitraRole && !createUserDto.mitraId) {
-        throw new ConflictException(
-          'Mitra role tidak bisa diassign tanpa mitraId',
-        );
+      if (isMitraScope && effectiveMitraId) {
+        this.userPolicy.canManageMitraUser(effectiveMitraId, actor);
       }
-      if (isMitraScope && createUserDto.mitraId) {
-        this.userPolicy.canManageMitraUser(createUserDto.mitraId, actor);
-      }
-      const createdUser = await this.userRepository.create(
-        mapCreateUserData(createUserDto, actorId),
-      );
-      return serializeUserWithAccess(createdUser);
+
+      const data = mapCreateUserData(createUserDto, actorId);
+
+      const createdUser = await this.userRepository.create(data);
+
+      return createdUser;
     } catch (error) {
       this.handleRepositoryError(error);
     }
   }
   async findAll({
+    auth,
+    session,
     scope,
     filter,
-    mitraId,
-    auth,
+    roleCode,
   }: {
     scope: 'INSIDIA' | 'MITRA';
-    filter?: UserFilter;
-    mitraId?: string;
     auth: AuthPayload;
+    session: UserSession;
+    filter?: UserFilter;
+    roleCode?: RoleCode;
   }) {
     const actorId = this.getActorId(auth);
     const permissionCode =
@@ -85,24 +104,28 @@ export class UserService {
     const actor = await this.rolesPermissionService.hasPermission(actorId, {
       permission: permissionCode,
       scope,
-      mitraId: mitraId,
+      mitraId: session.activeMitraId ?? undefined,
     });
     const effectiveMitraId =
-      scope === 'MITRA' ? (mitraId ?? actor.mitraRoles?.mitraId) : undefined;
+      scope === 'MITRA' ? session.activeMitraId : undefined;
     const isAdmin = actor.insidiaRole?.role.code === 'ADMIN';
-    const users = isAdmin
-      ? await this.userRepository.findAllByRoles({
-          filter,
-          roles: ['SUPER_ADMIN', 'ADMIN'],
-          scope,
-        })
-      : filter === 'deleted'
-        ? await this.userRepository.findAllDeleted(scope, effectiveMitraId)
-        : filter === 'all'
-          ? await this.userRepository.findAll(scope, effectiveMitraId)
-          : await this.userRepository.findAllActive(scope, effectiveMitraId);
+    const excludeRoles: RoleCode[] | undefined = isAdmin
+      ? ['SUPER_ADMIN', 'ADMIN']
+      : undefined;
+    const normalizedRoleCode =
+      roleCode && roleCode !== 'ALL' ? roleCode : undefined;
 
-    const res = users.map((user) => serializeUserWithAccess(user));
+    const { users, total } = await this.userRepository.findAll({
+      scope,
+      filter,
+      mitraId: effectiveMitraId,
+      roleCode: normalizedRoleCode,
+      excludeRoles: excludeRoles,
+    });
+    const res = {
+      users: users.map((user) => serializeUserWithAccess(user)),
+      total,
+    };
     return res;
   }
 
@@ -110,25 +133,25 @@ export class UserService {
     id: string,
     auth: AuthPayload,
     scope: 'INSIDIA' | 'MITRA',
-    mitraId?: string,
+    session: UserSession,
   ) {
     const user = await this.ensureActiveUserExists(id);
     const actorId = this.getActorId(auth);
     const permissionCode =
       scope === 'MITRA' ? 'user.viewone.mitra.all' : 'user.viewone.insidia.all';
     const isMitraScope = scope === 'MITRA';
-    const effectiveMitraId = isMitraScope
-      ? (mitraId ?? user.mitraRoles?.mitraId)
-      : undefined;
+    const effectiveMitraId = isMitraScope ? session.activeMitraId : undefined;
 
     const actor = await this.rolesPermissionService.hasPermission(actorId, {
       permission: permissionCode,
       scope,
-      mitraId: effectiveMitraId,
+      mitraId: effectiveMitraId ?? undefined,
     });
+
     this.userPolicy.canView(
       actor,
-      this.getExistingTargetRoleCode(user, scope),
+      this.getExistingTargetRoleCode(user, scope, effectiveMitraId ?? null),
+      effectiveMitraId ?? null,
       scope,
     );
 
@@ -144,10 +167,16 @@ export class UserService {
         ? userPermisionsCode.updateMitraUser
         : userPermisionsCode.updateInsidiaUser;
 
+    const targetMitraIds = [
+      ...new Set(updateUserDto.mitraRoles?.map((item) => item.mitraId) ?? []),
+    ];
+
     const effectiveMitraId =
-      updateUserDto.scope === 'MITRA'
-        ? (updateUserDto.mitraId ?? user.mitraRoles?.mitraId)
-        : undefined;
+      updateUserDto.scope === 'MITRA' ? targetMitraIds[0] : undefined;
+
+    if (updateUserDto.scope === 'MITRA' && !effectiveMitraId) {
+      throw new BadRequestException('mitraId wajib diisi jika scope MITRA');
+    }
 
     const actor = await this.rolesPermissionService.hasPermission(actorId, {
       permission: permissionCode,
@@ -156,16 +185,14 @@ export class UserService {
       requireMitraContext: updateUserDto.scope === 'MITRA',
     });
 
-    this.userPolicy.canUpdate(actor, {
-      targetRoleCode: this.getTargetRoleCodeByScope(updateUserDto, user),
-      targetScope: updateUserDto.scope,
-    });
-
-    if (updateUserDto.mitraRole && !updateUserDto.mitraId) {
-      throw new ConflictException(
-        'Mitra role tidak bisa diassign tanpa mitraId',
-      );
-    }
+    this.userPolicy.canUpdate(
+      actor,
+      {
+        targetRoleCode: this.getTargetRoleCodeByScope(updateUserDto, user),
+        targetScope: updateUserDto.scope,
+      },
+      effectiveMitraId ?? null,
+    );
 
     if (updateUserDto.scope === 'MITRA' && effectiveMitraId) {
       this.userPolicy.canManageMitraUser(effectiveMitraId, actor);
@@ -175,18 +202,38 @@ export class UserService {
     await this.ensureLastAkademikStillExistsAfterUpdate(user, updateUserDto);
     await this.ensureUniqueEmail(updateUserDto.email, id);
     await this.ensureUniquePhone(updateUserDto.phone, id);
-
+    await this.ensureUniqueNik(updateUserDto.nik, id);
     try {
       const updatedUser = await this.userRepository.updateActive(
         id,
-        mapUpdateUserData(updateUserDto),
+        mapUpdateUserData(updateUserDto, id),
       );
 
       if (!updatedUser) {
         throw new NotFoundException('User tidak ditemukan');
       }
-
-      return serializeUserWithAccess(updatedUser);
+      const session = await this.sessionRedis.get(user.id);
+      await this.sessionRedis.patch(user.id, {
+        activeMitraId:
+          updateUserDto.mitraRoles?.[0]?.mitraId ??
+          session?.activeMitraId ??
+          null,
+        activeRoleCode:
+          updateUserDto.mitraRoles?.[0]?.roleCode ??
+          session?.activeRoleCode ??
+          null,
+        lastSwitchAt: Date.now(),
+      });
+      if (!session) {
+        await this.sessionRedis.set(user.id, {
+          userId: user.id,
+          activeMitraId: updateUserDto.mitraRoles?.[0]?.mitraId ?? null,
+          activeRoleCode: updateUserDto.mitraRoles?.[0]?.roleCode ?? null,
+          lastSwitchAt: Date.now(),
+          version: 1,
+        });
+      }
+      return updatedUser;
     } catch (error) {
       this.handleRepositoryError(error);
     }
@@ -196,16 +243,20 @@ export class UserService {
     id: string,
     auth: AuthPayload,
     scope: 'INSIDIA' | 'MITRA',
-    mitraId?: string,
+    session: UserSession,
   ) {
     const actorId = this.getActorId(auth);
     const user = await this.ensureUserExists(id);
+    const activeMitraId = session.activeMitraId;
     const permissionCode =
       scope === 'MITRA'
         ? userPermisionsCode.deleteMitraUser
         : userPermisionsCode.deleteInsidiaUser;
     const effectiveMitraId =
-      scope === 'MITRA' ? (mitraId ?? user.mitraRoles?.mitraId) : undefined;
+      scope === 'MITRA'
+        ? (activeMitraId ??
+          user.mitraRoles?.find((r) => r.mitraId === activeMitraId)?.mitraId)
+        : undefined;
 
     const actor = await this.rolesPermissionService.hasPermission(actorId, {
       permission: permissionCode,
@@ -213,10 +264,18 @@ export class UserService {
       mitraId: effectiveMitraId,
       requireMitraContext: scope === 'MITRA',
     });
-    this.userPolicy.canUpdate(actor, {
-      targetRoleCode: this.getExistingTargetRoleCode(user, scope),
-      targetScope: scope,
-    });
+    this.userPolicy.canUpdate(
+      actor,
+      {
+        targetRoleCode: this.getExistingTargetRoleCode(
+          user,
+          scope,
+          effectiveMitraId ?? null,
+        ),
+        targetScope: scope,
+      },
+      effectiveMitraId ?? null,
+    );
 
     if (user.deletedAt) {
       return { message: 'User sudah dihapus' };
@@ -240,31 +299,53 @@ export class UserService {
   async deleteUserMitraRoles(
     auth: AuthPayload,
     userId: string,
+    session: UserSession,
     mitraId: string,
   ) {
     const actorId = this.getActorId(auth);
+    const activeMitraId = session.activeMitraId;
+
     try {
       await this.ensureUserExists(userId);
-      if (!mitraId) {
-        throw new BadRequestException(
-          'MitraId harus disertakan untuk menghapus peran mitra user',
-        );
-      }
+
       const actor = await this.rolesPermissionService.hasPermission(actorId, {
         permission: userPermisionsCode.deleteMitraUser,
         scope: 'MITRA',
-        mitraId,
+        mitraId: activeMitraId ?? undefined,
         requireMitraContext: true,
       });
-      console.log('Actor has permission to delete mitra user roles', {
-        actor: actor.mitraRoles?.mitraId ?? '',
-        mitraId,
-      });
+
       this.userPolicy.canManageMitraUser(mitraId, actor);
       await this.userRepository.deleteUserMitraRoles(userId, mitraId);
+      const session = await this.sessionRedis.get(userId);
+
+      if (session?.activeMitraId === activeMitraId) {
+        await this.sessionRedis.patch(userId, {
+          activeMitraId: null,
+          activeRoleCode: null,
+          lastSwitchAt: Date.now(),
+        });
+      }
     } catch (error) {
       this.handleRepositoryError(error);
     }
+  }
+
+  async switchMitra(userId: string, mitraId: string) {
+    const access = await this.userRepository.findUserMitraRoleByMitraId(
+      userId,
+      mitraId,
+    );
+
+    if (!access) {
+      throw new ForbiddenException('Tidak punya akses ke mitra ini');
+    }
+
+    return this.sessionRedis.patch(userId, {
+      activeMitraId: mitraId,
+      activeRoleCode: access.role.code,
+      lastSwitchAt: Date.now(),
+    });
   }
 
   async findRoleByUserId(userId: string) {
@@ -309,7 +390,17 @@ export class UserService {
       );
     }
   }
+  private async ensureUniqueNik(nik?: string | null, ignoredUserId?: string) {
+    if (nik === undefined || nik === null) {
+      return;
+    }
 
+    const existingUser = await this.userRepository.findByNik(nik);
+
+    if (existingUser && existingUser.id !== ignoredUserId) {
+      throw new ConflictException('User dengan NIK tersebut sudah ada');
+    }
+  }
   async ensureUserExists(id: string) {
     const user = await this.userRepository.findById(id);
 
@@ -358,33 +449,54 @@ export class UserService {
     user: Awaited<ReturnType<UserService['ensureActiveUserExists']>>,
     updateUserDto: UpdateUserDto,
   ) {
-    const currentRole = user.mitraRoles?.role.code;
-    if (
-      !currentRole ||
-      currentRole !== 'AKADEMIK' ||
-      user.status !== UserStatus.ACTIVE
-    ) {
+    if (user.status !== UserStatus.ACTIVE) {
       return;
     }
-    const nextRole = updateUserDto.mitraRole ?? currentRole;
+
+    const currentAkademikMitraRoles =
+      user.mitraRoles?.filter((r) => r.role.code === 'AKADEMIK') ?? [];
+
+    if (currentAkademikMitraRoles.length === 0) {
+      return;
+    }
+
     const nextStatus = updateUserDto.status ?? user.status;
 
-    const losingAkademikAccess =
-      nextRole !== 'AKADEMIK' || nextStatus !== UserStatus.ACTIVE;
+    const updatedMitraRoleMap = new Map(
+      updateUserDto.mitraRoles?.map((item) => [item.mitraId, item.roleCode]) ??
+        [],
+    );
 
-    if (!losingAkademikAccess) {
+    const affectedMitraIds = [
+      ...new Set(
+        currentAkademikMitraRoles
+          .filter((currentMitraRole) => {
+            const nextRole =
+              updatedMitraRoleMap.get(currentMitraRole.mitraId) ??
+              currentMitraRole.role.code;
+
+            const losingAkademikAccess =
+              nextRole !== 'AKADEMIK' || nextStatus !== UserStatus.ACTIVE;
+
+            return losingAkademikAccess;
+          })
+          .map((item) => item.mitraId),
+      ),
+    ];
+
+    if (affectedMitraIds.length === 0) {
       return;
     }
 
-    const activeAkademikCount =
-      await this.userRepository.countActiveAkademikByMitraId(
-        user.mitraRoles?.mitraId ?? '',
-      );
+    for (const mitraId of affectedMitraIds) {
+      const activeAkademikCount =
+        await this.userRepository.countActiveAkademikByMitraId(mitraId);
 
-    if (activeAkademikCount <= 1) {
-      throw new ConflictException(
-        'User akademik terakhir tidak boleh kehilangan akses akademik',
-      );
+      if (activeAkademikCount <= 1) {
+        throw new ConflictException(
+          'User akademik terakhir tidak boleh kehilangan akses akademik',
+        );
+      }
     }
   }
   private async ensureLastAdminStillExistsAfterUpdate(
@@ -447,11 +559,16 @@ export class UserService {
       scope: 'INSIDIA' | 'MITRA';
       role?: string | null;
       mitraRole?: string | null;
+      mitraId?: string | null;
     },
     user?: Awaited<ReturnType<UserService['ensureActiveUserExists']>>,
   ) {
     if (dto.scope === 'MITRA') {
-      return dto.mitraRole ?? user?.mitraRoles?.role.code ?? null;
+      return (
+        dto.mitraRole ??
+        user?.mitraRoles?.find((r) => r.mitraId === dto.mitraId)?.role.code ??
+        null
+      );
     }
 
     return dto.role ?? (user ? getInsidiaRoleCode(user) : null);
@@ -460,9 +577,10 @@ export class UserService {
   private getExistingTargetRoleCode(
     user: Awaited<ReturnType<UserService['ensureActiveUserExists']>>,
     scope: 'INSIDIA' | 'MITRA',
+    mitraId: string | null,
   ) {
     return scope === 'MITRA'
-      ? (user.mitraRoles?.role.code ?? null)
+      ? (user.mitraRoles?.find((r) => r.mitraId === mitraId)?.role.code ?? null)
       : getInsidiaRoleCode(user);
   }
 }

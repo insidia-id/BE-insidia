@@ -18,6 +18,22 @@ enum MitraType {
   KAMPUS
   SEKOLAH
 }
+
+
+enum Gender {
+  MALE
+  FEMALE
+}
+enum Religion {
+  ISLAM
+  CHRISTIAN
+  CATHOLIC
+  HINDU
+  BUDDHIST
+  CONFUCIAN
+  OTHER
+}
+
 enum AcademicStatus {
   ACTIVE
   INACTIVE
@@ -178,6 +194,13 @@ model User {
   email           String
   normalizedEmail String    @unique
   emailVerified   DateTime?
+  nik String? @unique
+
+  birthPlace String?
+  birthDate  DateTime?
+
+  gender   Gender?
+  religion Religion?
   password        String?
   phone           String?   @unique
   phoneVerifiedAt DateTime?
@@ -198,16 +221,13 @@ model User {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
- mitraRoles   UserMitraRole?
+ mitraRoles   UserMitraRole[]
   accounts     Account[]
   authSessions AuthSession[]
   loginEvents  LoginEvent[]
 
   mentorProfile   MentorProfile?
-  guruProfile     GuruProfile?
-  muridProfile    MuridProfile?
-  waliProfile     WaliMuridProfile?
-  academicProfile AcademicProfile?
+
   waliClassGroups ClassGroup[] @relation("ClassGroupHomeroomTeacher")
   classGroupCoursesAsTeacher ClassGroupCourse[] @relation("ClassGroupCourseTeacher")
   classGroupStudents ClassGroupStudent[] @relation("ClassGroupStudentUser")
@@ -339,6 +359,7 @@ model Mitra {
   slug      String    @unique
   type      MitraType
   status   AcademicStatus @default(ACTIVE)
+  mitraProfile MitraProfile?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -358,9 +379,24 @@ model Mitra {
   @@index([type])
   @@index([deletedAt])
 }
+
+model MitraProfile {
+  id      String @id @default(cuid())
+  mitraId String @unique
+
+  npsn String @unique
+
+  address      String? @db.Text
+
+  mitra Mitra @relation(fields: [mitraId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model UserMitraRole {
   id      String @id @default(cuid())
-  userId  String @unique
+  userId  String 
   mitraId String
   roleId  String
 
@@ -370,7 +406,10 @@ model UserMitraRole {
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   mitra Mitra @relation(fields: [mitraId], references: [id], onDelete: Cascade)
   role  Role  @relation(fields: [roleId], references: [id], onDelete: Restrict)
-
+  guruProfile     GuruProfile?
+  muridProfile    MuridProfile?
+  waliProfile     WaliMuridProfile?
+  academicProfile AcademicProfile?
   @@unique([userId, mitraId])
   @@index([userId])
   @@index([mitraId])
@@ -668,36 +707,32 @@ model MentorProfile {
 
 model GuruProfile {
   id     String @id @default(cuid())
-  userId String @unique
-
-  nip     String?
+  usermitraroleId String @unique
+  nip     String? @unique
   subject String?
   bio     String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  usermitrarole UserMitraRole @relation(fields: [usermitraroleId], references: [id], onDelete: Cascade)
 }
 
 model AcademicProfile {
   id     String @id @default(cuid())
-  userId String @unique
-
+  usermitraroleId String @unique
   position String?
   division String?
   note     String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  usermitrarole UserMitraRole @relation(fields: [usermitraroleId], references: [id], onDelete: Cascade)
 }
 
 model MuridProfile {
   id     String @id @default(cuid())
-  userId String @unique
-
+  usermritaroleId String @unique
   nis     String?
   kelas   String?
   jurusan String?
@@ -707,7 +742,7 @@ model MuridProfile {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  usermitrarole UserMitraRole @relation(fields: [usermritaroleId], references: [id], onDelete: Cascade)
   wali User? @relation("WaliMuridRelation", fields: [waliId], references: [id], onDelete: SetNull)
 
   @@index([waliId])
@@ -716,6 +751,7 @@ model MuridProfile {
 
 model WaliMuridProfile {
   id     String @id @default(cuid())
+  usermitraroleId String @unique
   userId String @unique
 
   pekerjaan String?
@@ -724,7 +760,7 @@ model WaliMuridProfile {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  usermitrarole UserMitraRole @relation(fields: [usermitraroleId], references: [id], onDelete: Cascade)
 }
 
 model Category {

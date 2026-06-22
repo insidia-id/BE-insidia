@@ -83,7 +83,6 @@ export class JwtTokenService {
         sub: assertString(payload.sub),
         email: assertString(payload.email),
         role: assertString(payload.role),
-        permissions: assertStringArray(payload.permissions),
         status: assertUserStatus(payload.status),
         sessionId: assertString(payload.sessionId),
         iat: payload.iat,

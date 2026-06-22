@@ -145,9 +145,5 @@ export class BulkService {
       jobId,
       attempts: 3,
     });
-    console.log(
-      `Dispatched job ${jobId} of type ${type} with result:`,
-      dispatchResult,
-    );
   }
 }

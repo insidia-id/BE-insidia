@@ -25,7 +25,11 @@ export class CoursePolicy {
     ) {
       return true;
     }
-    if (actorRole.mitraRoles?.role.code === 'AKADEMIK') {
+    if (
+      actorRole.mitraRoles?.some(
+        (r) => r.role.code === 'AKADEMIK' && auth?.sub === target.creatorId,
+      )
+    ) {
       return true;
     }
 

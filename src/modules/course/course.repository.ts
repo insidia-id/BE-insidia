@@ -121,7 +121,7 @@ export class CourseRepository {
     creatorId?: string;
     scope?: Prisma.CourseWhereInput['scope'];
     status?: Prisma.CourseWhereInput['status'];
-    mitraId?: string;
+    mitraId?: string | null;
   }) {
     const { creatorId, scope, status, mitraId } = params ?? {};
 

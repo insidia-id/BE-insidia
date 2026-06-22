@@ -18,7 +18,7 @@ import { ProcessBulkPermissionImportUseCase } from './bulk-upload/process-bulk-p
 @Module({
   imports: [
     PrismaModule,
-    AuthModule,
+    forwardRef(() => AuthModule),
     forwardRef(() => RolesModule),
     forwardRef(() => BullmqModule),
   ],

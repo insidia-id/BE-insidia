@@ -1,15 +1,6 @@
 import { z } from 'zod';
-import {
-  nullableTrimmedStringSchema,
-  roleCodeSchema,
-} from '../../access-control/dto/shared-access.dto';
+import { BaseRoleSchema } from './create-role.dto';
 
-export const updateRoleSchema = z.object({
-  name: z.string().trim().min(1).optional(),
-  code: roleCodeSchema.optional(),
-  scope: z.enum(['INSIDIA', 'MITRA']).optional(),
-  description: nullableTrimmedStringSchema,
-  isSystem: z.boolean().optional(),
-});
+export const updateRoleSchema = BaseRoleSchema.partial();
 
 export type UpdateRoleDto = z.infer<typeof updateRoleSchema>;

@@ -3,12 +3,20 @@ FROM node:20-alpine
 WORKDIR /app
 
 COPY package*.json ./
-COPY prisma ./prisma
 
 RUN npm install
 
 COPY . .
 
+RUN npx prisma generate
+
 RUN npm run build
 
-CMD ["sh", "-c", "npm run db:deploy && npm run start:prod"]
+EXPOSE 5000
+
+ENV NODE_ENV=production
+
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+CMD ["/app/entrypoint.sh"]

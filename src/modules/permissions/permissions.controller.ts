@@ -25,12 +25,12 @@ import { EnqueueBulkPermissionImportUseCase } from './bulk-upload/enqueue-bulk-p
 import { type UploadedBulkFile } from 'src/infrastruktur/queue/bullmq/bulk.types';
 import {
   type CreateModulePermissionDto,
-  createModulePermissionSchema,
-  createPermissionSchema,
+  BaseCreateModulePermissionSchema as createModulePermissionSchema,
+  BaseCreatePermissionSchema as createPermissionSchema,
   type CreatePermissionDto,
 } from './dto/create-permission.dto';
 import {
-  updatePermissionSchema,
+  BaseUpdatePermissionSchema,
   type UpdatePermissionDto,
 } from './dto/update-permission.dto';
 import { PermissionsService } from './permissions.service';
@@ -47,12 +47,11 @@ export class PermissionsController {
   findAllModulePermissions(
     @Req() request: AuthenticatedRequest,
     @Query('scope') scope: RoleScope,
-    @Query('mitraId') mitraId?: string,
   ) {
     return this.permissionsService.findAllModulePermissions(
       request.auth,
       scope,
-      mitraId,
+      request.session,
     );
   }
   @Post('modules')
@@ -105,7 +104,7 @@ export class PermissionsController {
   updatePermission(
     @Req() request: AuthenticatedRequest,
     @Param('id') id: string,
-    @Body(new ZodValidationPipe(updatePermissionSchema))
+    @Body(new ZodValidationPipe(BaseUpdatePermissionSchema))
     updatePermissionDto: UpdatePermissionDto,
   ) {
     return this.permissionsService.updatePermission(

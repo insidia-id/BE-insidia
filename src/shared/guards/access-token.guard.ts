@@ -9,9 +9,11 @@ import type { Request } from 'express';
 import type { AccessTokenPayload } from '../../modules/auth/auth.types';
 import { JwtTokenService } from '../../modules/auth/jwt-token.service';
 import { AuthService } from 'src/modules/auth/auth.service';
-
+import { SessionRedisService } from 'src/infrastruktur/redis/session.redis.service';
+import { UserSession } from 'src/modules/auth/auth.types';
 export type AuthenticatedRequest = Request & {
   auth: AccessTokenPayload;
+  session: UserSession;
 };
 
 @Injectable()
@@ -19,6 +21,7 @@ export class AccessTokenGuard implements CanActivate {
   constructor(
     private readonly jwtTokenService: JwtTokenService,
     private readonly authService: AuthService,
+    private readonly sessionRedis: SessionRedisService,
   ) {}
 
   async canActivate(context: ExecutionContext) {
@@ -40,15 +43,22 @@ export class AccessTokenGuard implements CanActivate {
         message: 'User tidak ditemukan',
       });
     }
-
+    const session = await this.sessionRedis.validateSession(auth.sub, user);
+    if (!session) {
+      throw new UnauthorizedException('Session expired');
+    }
     if (user.status === 'BANNED') {
       throw new ForbiddenException({
         code: 'USER_BANNED',
         message: 'Akun kamu telah diblokir',
       });
     }
+    request.auth = {
+      ...auth,
+      sessionId: auth.sessionId,
+    };
 
-    request.auth = auth;
+    request.session = session;
     return true;
   }
 }

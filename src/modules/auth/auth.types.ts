@@ -5,13 +5,19 @@ export type AccessTokenPayload = {
   sub: string;
   email: string;
   role: string;
-  permissions: string[];
   status: UserStatus;
   sessionId: string;
   iat?: number;
   exp?: number;
 };
-
+export type UserSession = {
+  userId: string;
+  activeMitraId: string | null;
+  activeRoleCode: string | null;
+  permissions?: string[];
+  lastSwitchAt: number;
+  version: number;
+};
 export type RefreshTokenPayload = {
   type: 'refresh';
   sub: string;

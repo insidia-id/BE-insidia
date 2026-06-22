@@ -13,6 +13,7 @@ import {
   AccessTokenGuard,
   type AuthenticatedRequest,
 } from '../../../shared/guards/access-token.guard';
+import { requireActiveMitraId } from '../../../shared/session/active-mitra-session';
 import { ZodValidationPipe } from '../../../shared/zod/zod-validation.pipe';
 import {
   createAcademicClassSchema,
@@ -23,54 +24,52 @@ import {
 import { AcademicClassService } from './academic-class.service';
 
 @UseGuards(AccessTokenGuard)
-@Controller('mitras/:mitraId/academic/kelas')
+@Controller('mitras/active/academic/kelas')
 export class AcademicClassController {
   constructor(private readonly service: AcademicClassService) {}
 
   @Post()
   createAcademicClass(
-    @Param('mitraId') mitraId: string,
     @Body(new ZodValidationPipe(createAcademicClassSchema))
     dto: CreateAcademicClassDto,
     @Req() request: AuthenticatedRequest,
   ) {
+    const mitraId = requireActiveMitraId(request);
     return this.service.createAcademicClass(mitraId, dto, request.auth);
   }
 
   @Get()
-  findAcademicClasses(
-    @Param('mitraId') mitraId: string,
-    @Req() request: AuthenticatedRequest,
-  ) {
+  findAcademicClasses(@Req() request: AuthenticatedRequest) {
+    const mitraId = requireActiveMitraId(request);
     return this.service.findAcademicClasses(mitraId, request.auth);
   }
 
   @Get(':id')
   findAcademicClass(
-    @Param('mitraId') mitraId: string,
     @Param('id') id: string,
     @Req() request: AuthenticatedRequest,
   ) {
+    const mitraId = requireActiveMitraId(request);
     return this.service.findAcademicClass(mitraId, id, request.auth);
   }
 
   @Patch(':id')
   updateAcademicClass(
-    @Param('mitraId') mitraId: string,
     @Param('id') id: string,
     @Body(new ZodValidationPipe(updateAcademicClassSchema))
     dto: UpdateAcademicClassDto,
     @Req() request: AuthenticatedRequest,
   ) {
+    const mitraId = requireActiveMitraId(request);
     return this.service.updateAcademicClass(mitraId, id, dto, request.auth);
   }
 
   @Delete(':id')
   removeAcademicClass(
-    @Param('mitraId') mitraId: string,
     @Param('id') id: string,
     @Req() request: AuthenticatedRequest,
   ) {
+    const mitraId = requireActiveMitraId(request);
     return this.service.removeAcademicClass(mitraId, id, request.auth);
   }
 }

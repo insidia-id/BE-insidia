@@ -27,6 +27,7 @@ import { OtpService } from '../otp/otp.service';
 import { AuthRepository } from './auth.repository';
 import type { GoogleExchangeDto } from './dto/create-auth.dto';
 import { JwtTokenService } from './jwt-token.service';
+import { SessionRedisService } from 'src/infrastruktur/redis/session.redis.service';
 
 @Injectable()
 export class AuthService {
@@ -43,6 +44,7 @@ export class AuthService {
     private readonly authRepository: AuthRepository,
     private readonly jwtTokenService: JwtTokenService,
     private readonly otpService: OtpService,
+    private readonly sessionRedis: SessionRedisService,
   ) {}
 
   async requestOtpLogin(email: string, ipAddress: string) {
@@ -219,7 +221,6 @@ export class AuthService {
           sub: user.id,
           email: user.email,
           role: accessProfile.role,
-          permissions: accessProfile.permissions,
           status: user.status,
           sessionId: payload.sessionId,
         },
@@ -283,7 +284,6 @@ export class AuthService {
         sub: user.id,
         email: user.email,
         role: accessProfile.role,
-        permissions: accessProfile.permissions,
         status: user.status,
         sessionId,
       },
@@ -299,7 +299,18 @@ export class AuthService {
       userAgent,
       expiresAt: new Date(Date.now() + this.refreshTokenTtlSeconds * 1000),
     });
+    const roles = await this.authRepository.findUserWithRolesById(user.id);
 
+    const defaultRole = roles[0];
+
+    await this.sessionRedis.set(user.id, {
+      userId: user.id,
+      activeMitraId: defaultRole?.mitraId ?? null,
+      activeRoleCode: defaultRole?.role?.code ?? null,
+      permissions: [],
+      lastSwitchAt: Date.now(),
+      version: 1,
+    });
     return {
       user: serializeAuthUser(user),
       accessToken,
@@ -316,8 +327,16 @@ export class AuthService {
     if (!user) {
       throw new NotFoundException('User tidak ditemukan');
     }
+    const session = await this.sessionRedis.get(userId);
 
-    return serializeProfileUser(user);
+    if (!session) {
+      throw new UnauthorizedException('Session expired');
+    }
+
+    return serializeProfileUser({
+      user,
+      session,
+    });
   }
 
   async getSessionStatus(auth: AuthPayload) {

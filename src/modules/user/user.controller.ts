@@ -8,10 +8,13 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UseGuards,
   UploadedFile,
   UseInterceptors,
+  BadRequestException,
 } from '@nestjs/common';
+import type { Response } from 'express';
 
 import { UserService } from './user.service';
 
@@ -25,11 +28,13 @@ import { RolesGuard } from '../../shared/guards/admin-access.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { PreviewBulkUserUseCase } from './bulk-upload/preview-bulk-user';
 import { EnqueueBulkUserImportUseCase } from './bulk-upload/enqueue-bulk-user-import';
+import { BulkUserTemplateGeneratorService } from './bulk-upload/bulk-user-template-generator.service';
 import {
   AccessTokenGuard,
   type AuthenticatedRequest,
 } from '../../shared/guards/access-token.guard';
 import { type UploadedBulkFile } from 'src/infrastruktur/queue/bullmq/bulk.types';
+import { type RoleCode } from './user.types';
 @UseGuards(AccessTokenGuard, RolesGuard)
 @Controller('admin/user')
 export class UserController {
@@ -37,6 +42,7 @@ export class UserController {
     private readonly userService: UserService,
     private readonly previewBulkUserUseCase: PreviewBulkUserUseCase,
     private readonly enqueueBulkUserImportUseCase: EnqueueBulkUserImportUseCase,
+    private readonly templateGenerator: BulkUserTemplateGeneratorService,
   ) {}
 
   @Post()
@@ -45,6 +51,7 @@ export class UserController {
     createUserDto: CreateUserDto,
     @Req() request: AuthenticatedRequest,
   ) {
+    console.log('createUserDto controller:', createUserDto);
     return this.userService.create(createUserDto, request.auth);
   }
 
@@ -53,27 +60,28 @@ export class UserController {
     @Req() request: AuthenticatedRequest,
     @Query('scope') scope?: 'INSIDIA' | 'MITRA',
     @Query('filter') filter?: 'all' | 'available' | 'deleted',
-    @Query('mitraId') mitraId?: string,
+    @Query('roleCode') roleCode?: RoleCode,
   ) {
-    return this.userService.findAll({
+    const result = this.userService.findAll({
+      auth: request.auth,
+      session: request.session,
       scope: scope ?? 'INSIDIA',
       filter,
-      mitraId,
-      auth: request.auth,
+      roleCode,
     });
+    return result;
   }
   @Get(':id')
   findOne(
     @Req() request: AuthenticatedRequest,
     @Param('id') id: string,
     @Query('scope') scope?: 'INSIDIA' | 'MITRA',
-    @Query('mitraId') mitraId?: string,
   ) {
     return this.userService.findOne(
       id,
       request.auth,
       scope ?? 'INSIDIA',
-      mitraId,
+      request.session,
     );
   }
 
@@ -94,32 +102,56 @@ export class UserController {
     @Req() request: AuthenticatedRequest,
     @Param('id') id: string,
     @Query('scope') scope?: 'INSIDIA' | 'MITRA',
-    @Query('mitraId') mitraId?: string,
   ) {
-    console.log('Deleting user', { id, scope, mitraId });
     return this.userService.remove(
       id,
       request.auth,
       scope ?? 'INSIDIA',
-      mitraId,
+      request.session,
     );
   }
-  @Delete(':id/mitra-roles')
+
+  @Delete(':id/mitra-roles/:mitraId')
   deleteUserMitraRoles(
     @Req() request: AuthenticatedRequest,
     @Param('id') userId: string,
-    @Query('mitraId') mitraId: string,
+    @Param(`mitraId`) mitraId: string,
   ) {
-    console.log('Deleting mitra roles for user', { userId, mitraId });
-    return this.userService.deleteUserMitraRoles(request.auth, userId, mitraId);
+    return this.userService.deleteUserMitraRoles(
+      request.auth,
+      userId,
+      request.session,
+      mitraId,
+    );
   }
+  @Post(':id/switch-mitra')
+  switchMitra(@Param('id') userId: string, @Body('mitraId') mitraId: string) {
+    return this.userService.switchMitra(userId, mitraId);
+  }
+
+  @Get('bulk-upload/template/:roleCode')
+  downloadTemplate(@Param('roleCode') roleCode: string, @Res() res: Response) {
+    if (!this.templateGenerator.isValidRoleCode(roleCode)) {
+      throw new BadRequestException(
+        'Role code tidak valid. Gunakan: GURU, MURID, WALI_MURID, atau AKADEMIK',
+      );
+    }
+
+    const csvContent = this.templateGenerator.generateTemplate(roleCode);
+    const filename = this.templateGenerator.getTemplateFilename(roleCode);
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csvContent);
+  }
+
   @Post('preview')
   @UseInterceptors(FileInterceptor('file'))
   preview(
     @Req() request: AuthenticatedRequest,
     @UploadedFile() file: UploadedBulkFile,
   ) {
-    return this.previewBulkUserUseCase.execute(file, request.auth);
+    return this.previewBulkUserUseCase.execute(file, request);
   }
 
   @Post('import/:jobId')
