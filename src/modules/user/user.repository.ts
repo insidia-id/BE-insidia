@@ -82,47 +82,7 @@ export class UserRepository {
     const [users, total] = await this.prisma.$transaction([
       this.prisma.user.findMany({
         where,
-        select: {
-          email: true,
-          name: true,
-          createdAt: true,
-          updatedAt: true,
-          deletedAt: true,
-          status: true,
-          id: true,
-          image: true,
-          insidiaRole: {
-            select: {
-              role: {
-                select: {
-                  id: true,
-                  code: true,
-                },
-              },
-            },
-          },
-          mitraRoles: {
-            select: {
-              mitra: {
-                select: {
-                  id: true,
-                  name: true,
-                  slug: true,
-                },
-              },
-              role: {
-                select: {
-                  id: true,
-                  code: true,
-                },
-              },
-              academicProfile: true,
-              guruProfile: true,
-              muridProfile: true,
-              waliProfile: true,
-            },
-          },
-        },
+        select: adminUserListSelect,
         orderBy: {
           createdAt: 'desc',
         },
@@ -150,7 +110,11 @@ export class UserRepository {
       where: {
         normalizedEmail,
       },
-      select: adminUserListSelect,
+      select: {
+        id: true,
+        email: true,
+        normalizedEmail: true,
+      },
     });
   }
 
@@ -159,7 +123,9 @@ export class UserRepository {
       where: {
         phone,
       },
-      select: adminUserListSelect,
+      select: {
+        id: true,
+      },
     });
   }
   findByNik(nik: string) {
@@ -241,6 +207,7 @@ export class UserRepository {
 
     return result.count > 0;
   }
+
   countActiveAkademikByMitraId(mitraId: string) {
     return this.prisma.user.count({
       where: {
@@ -257,6 +224,7 @@ export class UserRepository {
       },
     });
   }
+
   countActiveAdmins() {
     return this.prisma.user.count({
       where: {
@@ -274,6 +242,7 @@ export class UserRepository {
       },
     });
   }
+
   async deleteUserMitraRoles(userId: string, mitraId: string) {
     await this.prisma.userMitraRole.deleteMany({
       where: {
@@ -282,6 +251,7 @@ export class UserRepository {
       },
     });
   }
+
   private handlePrismaError(error: unknown): never {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&

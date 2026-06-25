@@ -6,7 +6,7 @@ export const optionalNullableDateSchema = z.preprocess((value) => {
   const date = new Date(value as string | number | Date);
 
   return isNaN(date.getTime()) ? null : date;
-}, z.date().nullable());
+}, z.date().nullable().optional());
 
 export const optionalNullableStringSchema = z.preprocess(
   (value) => (value === '' ? null : value),

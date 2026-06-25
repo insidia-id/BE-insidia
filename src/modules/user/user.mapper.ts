@@ -408,3 +408,39 @@ export function mapBulkUploadUserUpsertData(rawData: CreateUserDto): {
     update,
   };
 }
+export function mapPreviewBulkUploadUserData(
+  row: any,
+  activeMitraId?: string,
+): CreateUserDto {
+  const roleCode = row.mitraRoles;
+
+  return {
+    email: row.email,
+    name: row.name,
+    phone: row.phone || null,
+    status: row.status,
+    scope: 'MITRA',
+    role: 'USER',
+
+    mitraRoles: [
+      {
+        mitraId: activeMitraId ?? row.mitraId,
+        roleCode,
+        profile: {
+          nip: row.nip,
+          subject: row.subject,
+          bio: row.bio,
+          nis: row.nis,
+          kelas: row.kelas,
+          jurusan: row.jurusan,
+          waliId: row.waliId,
+          pekerjaan: row.pekerjaan,
+          alamat: row.alamat,
+          position: row.position,
+          division: row.division,
+          note: row.note,
+        } as MitraRoleProfileInput,
+      },
+    ],
+  };
+}

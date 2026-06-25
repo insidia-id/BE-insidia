@@ -76,7 +76,11 @@ export function getUserRoleWhereByScope({
     },
   };
 }
-
+export const MitraSelect = {
+  id: true,
+  name: true,
+  slug: true,
+};
 export const userRole = {
   insidiaRole: {
     select: {
@@ -117,6 +121,9 @@ const userMitraRoleSelect = {
   id: true,
   roleId: true,
   mitraId: true,
+  mitra: {
+    select: MitraSelect,
+  },
   guruProfile: true,
   muridProfile: true,
   waliProfile: true,
@@ -131,22 +138,19 @@ const userMitraRoleSelect = {
   },
 } satisfies Prisma.UserMitraRoleSelect;
 export const adminUserListSelect = {
-  id: true,
-  name: true,
   email: true,
-  status: true,
-  image: true,
+  name: true,
   createdAt: true,
   updatedAt: true,
   deletedAt: true,
+  status: true,
+  id: true,
+  image: true,
   insidiaRole: {
     select: {
-      id: true,
-      roleId: true,
       role: {
         select: {
           id: true,
-          scope: true,
           code: true,
         },
       },
@@ -154,20 +158,23 @@ export const adminUserListSelect = {
   },
   mitraRoles: {
     select: {
-      id: true,
-      roleId: true,
-      mitraId: true,
-      guruProfile: true,
-      muridProfile: true,
-      waliProfile: true,
-      academicProfile: true,
+      mitra: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+        },
+      },
       role: {
         select: {
           id: true,
-          scope: true,
           code: true,
         },
       },
+      academicProfile: true,
+      guruProfile: true,
+      muridProfile: true,
+      waliProfile: true,
     },
   },
 } satisfies Prisma.UserSelect;

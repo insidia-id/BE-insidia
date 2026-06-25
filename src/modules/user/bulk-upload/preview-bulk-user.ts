@@ -17,6 +17,7 @@ import {
 } from 'src/infrastruktur/queue/bullmq/bulk.types';
 import { BulkService } from 'src/infrastruktur/queue/bullmq/bulk.service';
 import { AuthenticatedRequest } from 'src/shared/guards/access-token.guard';
+import { mapPreviewBulkUploadUserData } from '../user.mapper';
 @Injectable()
 export class PreviewBulkUserUseCase {
   constructor(
@@ -33,6 +34,7 @@ export class PreviewBulkUserUseCase {
       throw new BadRequestException('File wajib diupload');
     }
     const activeMitraId = request.session.activeMitraId;
+    console.log(' session activeMitraId', activeMitraId);
     const actor = await this.userRepository.findRoleByUserId(request.auth.sub);
 
     if (!actor) {
@@ -65,23 +67,13 @@ export class PreviewBulkUserUseCase {
     };
   }
 
-  private applyActorDefaults(
-    row: CreateUserDto,
-    activeMitraId?: string,
-  ): CreateUserDto {
+  private applyActorDefaults(row: any, activeMitraId?: string): CreateUserDto {
     if (!activeMitraId) {
       return row;
     }
+    const PreviewData = mapPreviewBulkUploadUserData(row, activeMitraId);
 
-    return {
-      ...row,
-      scope: 'MITRA',
-      mitraRoles:
-        row.mitraRoles?.map((role) => ({
-          ...role,
-          mitraId: activeMitraId ?? role.mitraId,
-        })) ?? [],
-    };
+    return PreviewData;
   }
 
   private async authorizeRows(
@@ -153,7 +145,12 @@ export class PreviewBulkUserUseCase {
 
       checkedContexts.add(contextKey);
     }
-
+    console.log(
+      'primaryAssignment',
+      JSON.stringify(primaryAssignment, null, 2),
+    );
+    console.log('data', JSON.stringify(data, null, 2));
+    console.log('activeMitraId', activeMitraId);
     this.userPolicy.canCreate(
       actor,
       {

@@ -8,13 +8,10 @@ import {
   Post,
   Query,
   Req,
-  Res,
   UseGuards,
   UploadedFile,
   UseInterceptors,
-  BadRequestException,
 } from '@nestjs/common';
-import type { Response } from 'express';
 
 import { UserService } from './user.service';
 
@@ -28,7 +25,6 @@ import { RolesGuard } from '../../shared/guards/admin-access.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { PreviewBulkUserUseCase } from './bulk-upload/preview-bulk-user';
 import { EnqueueBulkUserImportUseCase } from './bulk-upload/enqueue-bulk-user-import';
-import { BulkUserTemplateGeneratorService } from './bulk-upload/bulk-user-template-generator.service';
 import {
   AccessTokenGuard,
   type AuthenticatedRequest,
@@ -42,7 +38,6 @@ export class UserController {
     private readonly userService: UserService,
     private readonly previewBulkUserUseCase: PreviewBulkUserUseCase,
     private readonly enqueueBulkUserImportUseCase: EnqueueBulkUserImportUseCase,
-    private readonly templateGenerator: BulkUserTemplateGeneratorService,
   ) {}
 
   @Post()
@@ -51,7 +46,6 @@ export class UserController {
     createUserDto: CreateUserDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    console.log('createUserDto controller:', createUserDto);
     return this.userService.create(createUserDto, request.auth);
   }
 
@@ -129,22 +123,6 @@ export class UserController {
     return this.userService.switchMitra(userId, mitraId);
   }
 
-  @Get('bulk-upload/template/:roleCode')
-  downloadTemplate(@Param('roleCode') roleCode: string, @Res() res: Response) {
-    if (!this.templateGenerator.isValidRoleCode(roleCode)) {
-      throw new BadRequestException(
-        'Role code tidak valid. Gunakan: GURU, MURID, WALI_MURID, atau AKADEMIK',
-      );
-    }
-
-    const csvContent = this.templateGenerator.generateTemplate(roleCode);
-    const filename = this.templateGenerator.getTemplateFilename(roleCode);
-
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.send(csvContent);
-  }
-
   @Post('preview')
   @UseInterceptors(FileInterceptor('file'))
   preview(
@@ -156,6 +134,6 @@ export class UserController {
 
   @Post('import/:jobId')
   import(@Req() request: AuthenticatedRequest, @Param('jobId') jobId: string) {
-    return this.enqueueBulkUserImportUseCase.execute(jobId, request.auth);
+    return this.enqueueBulkUserImportUseCase.execute(jobId, request);
   }
 }

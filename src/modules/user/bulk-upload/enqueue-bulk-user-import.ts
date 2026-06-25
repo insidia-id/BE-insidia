@@ -1,11 +1,11 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { BulkUploadRowStatus } from '@prisma/client';
-import type { AuthPayload } from '../../auth/auth.types';
 import { UserBulkImportJob } from '../jobs/user-bulk-import.job';
 import type { CreateUserDto } from '../dto/create-user.dto';
 import { UserRepository } from '../user.repository';
 import { PreviewBulkUserUseCase } from './preview-bulk-user';
 import { BulkService } from 'src/infrastruktur/queue/bullmq/bulk.service';
+import { AuthenticatedRequest } from 'src/shared/guards/access-token.guard';
 @Injectable()
 export class EnqueueBulkUserImportUseCase {
   constructor(
@@ -14,16 +14,17 @@ export class EnqueueBulkUserImportUseCase {
     private readonly bulkService: BulkService,
   ) {}
 
-  async execute(jobId: string, auth: AuthPayload) {
+  async execute(jobId: string, request: AuthenticatedRequest) {
     const job = await this.bulkService.findBulkUploadJob(jobId);
 
-    const actor = await this.userRepository.findRoleByUserId(auth.sub);
+    const actor = await this.userRepository.findRoleByUserId(request.auth.sub);
+    const activeMitraId = request.session.activeMitraId;
 
     if (!actor) {
       throw new NotFoundException('User tidak ditemukan');
     }
 
-    this.bulkService.validateJobOwnership(job, actor, auth.sub);
+    this.bulkService.validateJobOwnership(job, actor, request.auth.sub);
 
     this.bulkService.validateJobReadyForImport(job);
 
@@ -32,7 +33,12 @@ export class EnqueueBulkUserImportUseCase {
       BulkUploadRowStatus.VALID,
     );
 
-    await this.ensureActorCanImportRows(auth.sub, actor, rows);
+    await this.ensureActorCanImportRows(
+      request.auth.sub,
+      actor,
+      rows,
+      activeMitraId ?? undefined,
+    );
 
     await this.bulkService.queueJob(
       jobId,
@@ -50,6 +56,7 @@ export class EnqueueBulkUserImportUseCase {
     actorId: string,
     actor: NonNullable<Awaited<ReturnType<UserRepository['findRoleByUserId']>>>,
     rows: Array<{ rawData: unknown }>,
+    activeMitraId?: string,
   ) {
     const checkedContexts = new Set<string>();
 
@@ -60,6 +67,7 @@ export class EnqueueBulkUserImportUseCase {
         actor,
         data,
         checkedContexts,
+        activeMitraId,
       );
     }
   }

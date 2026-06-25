@@ -35,7 +35,7 @@ export class UserService {
   ) {}
 
   async create(createUserDto: CreateUserDto, auth: AuthPayload) {
-    console.log('createUserDto', createUserDto);
+    console.log('createUserDto', JSON.stringify(createUserDto, null, 2));
     const actorId = this.getActorId(auth);
 
     const permissionCode =
@@ -58,7 +58,9 @@ export class UserService {
       requireMitraContext: isMitraScope,
       mitraId: isMitraScope ? effectiveMitraId : undefined,
     });
-
+    console.log(
+      `Target role code: ${this.getTargetRoleCodeByScope(createUserDto)}`,
+    );
     this.userPolicy.canCreate(
       actor,
       {
@@ -155,7 +157,9 @@ export class UserService {
       scope,
     );
 
-    return serializeUserWithAccess(user);
+    const res = serializeUserWithAccess(user);
+    console.log('res', JSON.stringify(res, null, 2));
+    return res;
   }
 
   async update(id: string, updateUserDto: UpdateUserDto, auth: AuthPayload) {
@@ -558,15 +562,17 @@ export class UserService {
     dto: {
       scope: 'INSIDIA' | 'MITRA';
       role?: string | null;
-      mitraRole?: string | null;
-      mitraId?: string | null;
+      mitraRoles?: {
+        mitraId: string;
+        roleCode: string;
+      }[];
     },
     user?: Awaited<ReturnType<UserService['ensureActiveUserExists']>>,
   ) {
     if (dto.scope === 'MITRA') {
       return (
-        dto.mitraRole ??
-        user?.mitraRoles?.find((r) => r.mitraId === dto.mitraId)?.role.code ??
+        dto.mitraRoles?.[0]?.roleCode ??
+        user?.mitraRoles?.[0]?.role.code ??
         null
       );
     }
