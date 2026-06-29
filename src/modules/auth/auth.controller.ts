@@ -73,7 +73,7 @@ export class AuthController {
   @UseGuards(AccessTokenGuard)
   @Get('profile')
   getProfile(@Req() request: AuthenticatedRequest) {
-    return this.authService.getProfile(request.auth);
+    return this.authService.getProfile(request);
   }
 
   @UseGuards(AccessTokenGuard)

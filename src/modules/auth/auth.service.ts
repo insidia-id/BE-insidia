@@ -28,6 +28,7 @@ import { AuthRepository } from './auth.repository';
 import type { GoogleExchangeDto } from './dto/create-auth.dto';
 import { JwtTokenService } from './jwt-token.service';
 import { SessionRedisService } from 'src/infrastruktur/redis/session.redis.service';
+import { AuthenticatedRequest } from 'src/shared/guards/access-token.guard';
 
 @Injectable()
 export class AuthService {
@@ -320,9 +321,13 @@ export class AuthService {
     };
   }
 
-  async getProfile(auth: AuthPayload): Promise<ProfileResponse> {
-    const userId = auth.sub;
-    const user = await this.authRepository.getUserSelectById(userId);
+  async getProfile(request: AuthenticatedRequest): Promise<ProfileResponse> {
+    const userId = request.auth.sub;
+    const activeMitraId = request.session.activeMitraId;
+    const user = await this.authRepository.getUserSelectById(
+      userId,
+      activeMitraId,
+    );
 
     if (!user) {
       throw new NotFoundException('User tidak ditemukan');

@@ -43,49 +43,53 @@ export const authSessionUserSelect = {
   },
 } satisfies Prisma.UserSelect;
 
-export const profileUserSelect = {
-  id: true,
-  email: true,
-  name: true,
-  status: true,
-  image: true,
-  insidiaRole: {
-    select: {
-      role: {
-        select: {
-          code: true,
-          permissions: {
-            select: permissionCodeSelect,
-          },
-        },
-      },
-    },
-  },
+export const profileUserSelect = (mitraId: string | null) =>
+  ({
+    id: true,
+    email: true,
+    name: true,
+    status: true,
+    image: true,
 
-  mitraRoles: {
-    select: {
-      mitraId: true,
-      mitra: {
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-        },
-      },
-      role: {
-        select: {
-          code: true,
-          permissions: {
-            select: permissionCodeSelect,
-          },
-          mitraRolePermissions: {
-            select: mitraPermissionCodeSelect,
+    insidiaRole: {
+      select: {
+        role: {
+          select: {
+            code: true,
+            permissions: {
+              select: permissionCodeSelect,
+            },
           },
         },
       },
     },
-  },
-} satisfies Prisma.UserSelect;
+
+    mitraRoles: {
+      select: {
+        mitraId: true,
+        mitra: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
+        role: {
+          select: {
+            code: true,
+            mitraRolePermissions: {
+              where: mitraId
+                ? {
+                    mitraId,
+                  }
+                : {},
+              select: mitraPermissionCodeSelect,
+            },
+          },
+        },
+      },
+    },
+  }) satisfies Prisma.UserSelect;
 
 export const sessionSelect = {
   status: true,
@@ -119,7 +123,7 @@ export const sessionSelect = {
   },
 };
 export type ProfileUser = Prisma.UserGetPayload<{
-  select: typeof profileUserSelect;
+  select: ReturnType<typeof profileUserSelect>;
 }>;
 export const authUserStatusSelect = {
   id: true,

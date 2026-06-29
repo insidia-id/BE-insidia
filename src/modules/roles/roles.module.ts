@@ -10,6 +10,7 @@ import { RolesRepository } from './roles.repository';
 import { RolesService } from './roles.service';
 import { RolesPermissionService } from './roles.permission';
 import { UserModule } from '../user/user.module';
+import { rolesPolicy } from './roles.policy';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { UserModule } from '../user/user.module';
     AccessTokenGuard,
     RolesGuard,
     RolesPermissionService,
+    rolesPolicy,
   ],
   exports: [RolesService, RolesRepository, RolesPermissionService],
 })

@@ -47,13 +47,36 @@ export class RolesController {
     @Req() request: AuthenticatedRequest,
     @Query('scope') scope: RoleScope,
     @Query('includeDeleted') includeDeleted?: string,
+    @Query('mitraId') mitraId?: string,
   ) {
     return this.rolesService.findAllRoles(
-      request.auth,
+      request,
       scope,
       includeDeleted === 'true',
-      request.session,
+      mitraId,
     );
+  }
+
+  @Get(':id')
+  @Roles('SUPER_ADMIN')
+  findRoleById(@Param('id') id: string) {
+    return this.rolesService.findRoleById(id);
+  }
+
+  @Patch(':id')
+  @Roles('SUPER_ADMIN')
+  updateRole(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(updateRoleSchema))
+    updateRoleDto: UpdateRoleDto,
+  ) {
+    return this.rolesService.updateRole(id, updateRoleDto);
+  }
+
+  @Delete(':id')
+  @Roles('SUPER_ADMIN')
+  removeRole(@Param('id') id: string) {
+    return this.rolesService.removeRole(id);
   }
 
   @Get(':roleId/permissions')
@@ -84,25 +107,40 @@ export class RolesController {
     assignRolePermissionsDto: AssignRolePermissionsDto,
   ) {
     return this.rolesService.replaceRolePermissions(
-      request.auth,
+      request,
       roleId,
       assignRolePermissionsDto,
     );
   }
 
-  @Put(':roleId/permissions/mitras/active')
+  @Get(':roleId/permissions/mitras/:mitraId')
+  findRoleMitraPermissions(
+    @Req() request: AuthenticatedRequest,
+    @Param('roleId') roleId: string,
+    @Param('mitraId') mitraId?: string,
+  ) {
+    const activeMitraId = requireActiveMitraId(request, mitraId);
+    return this.rolesService.findRoleMitraPermissions(
+      request,
+      roleId,
+      activeMitraId,
+    );
+  }
+
+  @Put(':roleId/permissions/mitras/:mitraId')
   replaceMitraRolePermissions(
     @Req() request: AuthenticatedRequest,
     @Param('roleId') roleId: string,
     @Body(new ZodValidationPipe(assignRolePermissionsSchema))
     assignRolePermissionsDto: AssignRolePermissionsDto,
+    @Param('mitraId') mitraId?: string,
   ) {
-    requireActiveMitraId(request);
+    const activeMitraId = requireActiveMitraId(request, mitraId);
     return this.rolesService.replaceMitraRolePermissions(
-      request.auth,
-      request.session,
+      request,
       roleId,
       assignRolePermissionsDto,
+      activeMitraId,
     );
   }
 
@@ -113,27 +151,5 @@ export class RolesController {
     @Param('permissionId') permissionId: string,
   ) {
     return this.rolesService.removeRolePermission(roleId, permissionId);
-  }
-
-  @Get(':id')
-  @Roles('SUPER_ADMIN')
-  findRoleById(@Param('id') id: string) {
-    return this.rolesService.findRoleById(id);
-  }
-
-  @Patch(':id')
-  @Roles('SUPER_ADMIN')
-  updateRole(
-    @Param('id') id: string,
-    @Body(new ZodValidationPipe(updateRoleSchema))
-    updateRoleDto: UpdateRoleDto,
-  ) {
-    return this.rolesService.updateRole(id, updateRoleDto);
-  }
-
-  @Delete(':id')
-  @Roles('SUPER_ADMIN')
-  removeRole(@Param('id') id: string) {
-    return this.rolesService.removeRole(id);
   }
 }

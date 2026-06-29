@@ -20,8 +20,8 @@ import {
   createMitraMemberSchema,
   type CreateMitraMemberDto,
 } from './dto/create-mitra-member.dto';
-import { createMitraSchema, type CreateMitraDto } from './dto/create-mitra.dto';
-import { updateMitraSchema, type UpdateMitraDto } from './dto/update-mitra.dto';
+import { BaseMitraSchema, type CreateMitraDto } from './dto/create-mitra.dto';
+import type { UpdateMitraDto } from './dto/update-mitra.dto';
 import { MitraService } from './mitra.service';
 import type { MitraFilter } from './mitra.types';
 
@@ -33,7 +33,7 @@ export class MitraController {
   @Post()
   create(
     @Req() request: AuthenticatedRequest,
-    @Body(new ZodValidationPipe(createMitraSchema))
+    @Body(new ZodValidationPipe(BaseMitraSchema))
     createMitraDto: CreateMitraDto,
   ) {
     return this.mitraService.create(request.auth, createMitraDto);
@@ -57,7 +57,7 @@ export class MitraController {
   update(
     @Req() request: AuthenticatedRequest,
     @Param('id') id: string,
-    @Body(new ZodValidationPipe(updateMitraSchema))
+    @Body(new ZodValidationPipe(BaseMitraSchema))
     updateMitraDto: UpdateMitraDto,
   ) {
     return this.mitraService.update(request.auth, id, updateMitraDto);

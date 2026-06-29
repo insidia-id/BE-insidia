@@ -35,7 +35,6 @@ export class UserService {
   ) {}
 
   async create(createUserDto: CreateUserDto, auth: AuthPayload) {
-    console.log('createUserDto', JSON.stringify(createUserDto, null, 2));
     const actorId = this.getActorId(auth);
 
     const permissionCode =
@@ -58,9 +57,7 @@ export class UserService {
       requireMitraContext: isMitraScope,
       mitraId: isMitraScope ? effectiveMitraId : undefined,
     });
-    console.log(
-      `Target role code: ${this.getTargetRoleCodeByScope(createUserDto)}`,
-    );
+
     this.userPolicy.canCreate(
       actor,
       {

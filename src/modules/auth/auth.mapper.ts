@@ -52,7 +52,7 @@ export function serializeProfileUser({
     mitraRoles: getMitraRoles(user),
     permissions: [
       ...(getInsidiaPermissionCodes(user) ?? []),
-      ...(getMitraPermissionCodes(user) ?? []),
+      ...(getMitraPermissionCodes(user, session.activeMitraId) ?? []),
     ],
     activeMitraId: session.activeMitraId,
     activeRoleCode: session.activeRoleCode,

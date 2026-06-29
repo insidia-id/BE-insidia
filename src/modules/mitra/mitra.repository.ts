@@ -2,54 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastruktur/prisma/prisma.service';
 import { MitraFilter } from './mitra.types';
-
-export const mitraSelect = {
-  id: true,
-  name: true,
-  slug: true,
-  type: true,
-  status: true,
-  createdAt: true,
-  updatedAt: true,
-  deletedAt: true,
-  _count: {
-    select: {
-      members: true,
-      academicYears: true,
-      semesters: true,
-      curricula: true,
-      classes: true,
-      classGroups: true,
-      courses: true,
-      learningMaterials: true,
-    },
-  },
-} satisfies Prisma.MitraSelect;
-
-export const mitraMemberSelect = {
-  id: true,
-  userId: true,
-  mitraId: true,
-  roleId: true,
-  createdAt: true,
-  updatedAt: true,
-  user: {
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      status: true,
-    },
-  },
-  role: {
-    select: {
-      id: true,
-      code: true,
-      name: true,
-      scope: true,
-    },
-  },
-} satisfies Prisma.UserMitraRoleSelect;
+import {
+  mitraSelect,
+  mitraMemberSelect,
+  mitraProfileSelect,
+} from './mitra.constants';
 
 @Injectable()
 export class MitraRepository {
@@ -97,14 +54,14 @@ export class MitraRepository {
   findById(id: string) {
     return this.prisma.mitra.findUnique({
       where: { id },
-      select: mitraSelect,
+      select: { ...mitraSelect, mitraProfile: { select: mitraProfileSelect } },
     });
   }
 
   findBySlug(slug: string) {
     return this.prisma.mitra.findUnique({
       where: { slug },
-      select: mitraSelect,
+      select: { ...mitraSelect, mitraProfile: { select: mitraProfileSelect } },
     });
   }
 
@@ -112,7 +69,7 @@ export class MitraRepository {
     return this.prisma.mitra.update({
       where: { id },
       data,
-      select: mitraSelect,
+      select: { ...mitraSelect, mitraProfile: { select: mitraProfileSelect } },
     });
   }
 
@@ -122,7 +79,7 @@ export class MitraRepository {
       data: {
         deletedAt: new Date(),
       },
-      select: mitraSelect,
+      select: { ...mitraSelect, mitraProfile: { select: mitraProfileSelect } },
     });
   }
 

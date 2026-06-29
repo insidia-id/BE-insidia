@@ -160,11 +160,14 @@ export class AuthRepository {
     });
   }
 
-  getUserSelectById(id: string) {
-    return this.prisma.user.findUnique({
+  getUserSelectById(id: string, mitraId: string | null) {
+    const userSelect = profileUserSelect(mitraId);
+    const res = this.prisma.user.findUnique({
       where: { id },
-      select: profileUserSelect,
+      select: userSelect,
     });
+
+    return res;
   }
   getStatusByUserId(id: string) {
     return this.prisma.user.findUnique({

@@ -1,6 +1,6 @@
 import { AcademicStatus, MitraType } from '@prisma/client';
 import { z } from 'zod';
-
+import { optionalNullableStringSchema } from '../../../shared/zod/zod.schemas';
 export function normalizeMitraSlug(value: string) {
   return value
     .trim()
@@ -12,10 +12,16 @@ export function normalizeMitraSlug(value: string) {
     .replace(/^-|-$/g, '');
 }
 
-export const createMitraSchema = z.object({
+export const mitraProfileSchema = z.object({
+  npsn: z.string().trim().min(1, 'npsn wajib diisi'),
+  address: optionalNullableStringSchema,
+});
+
+export const BaseMitraSchema = z.object({
   name: z.string().trim().min(1, 'nama mitra wajib diisi'),
   type: z.enum(MitraType, 'tipe mitra tidak valid'),
   status: z.enum(AcademicStatus, 'status mitra tidak valid'),
+  mitraProfile: mitraProfileSchema.optional(),
 });
 
-export type CreateMitraDto = z.infer<typeof createMitraSchema>;
+export type CreateMitraDto = z.infer<typeof BaseMitraSchema>;

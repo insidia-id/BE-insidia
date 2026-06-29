@@ -11,16 +11,19 @@ import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { RolesRepository } from './roles.repository';
 import { RolesPermissionService } from './roles.permission';
-import { AuthPayload, UserSession } from '../auth/auth.types';
+import { AuthPayload } from '../auth/auth.types';
 import { RolePermissionCodes } from './roles.constants';
 import { permissionCodes } from '../permissions/permissions.constants';
-
+import { AuthenticatedRequest } from 'src/shared/guards/access-token.guard';
+import { rolesPolicy } from './roles.policy';
+import { requireActiveMitraId } from 'src/shared/session/active-mitra-session';
 @Injectable()
 export class RolesService implements OnModuleInit {
   constructor(
     private readonly rolesRepository: RolesRepository,
     private readonly permissionsRepository: PermissionsRepository,
     private readonly rolesPermissionService: RolesPermissionService,
+    private readonly rolesPolicy: rolesPolicy,
   ) {}
 
   async onModuleInit() {
@@ -58,29 +61,39 @@ export class RolesService implements OnModuleInit {
   }
 
   async findAllRoles(
-    auth: AuthPayload,
+    request: AuthenticatedRequest,
     scope: RoleScope,
     includeDeleted = false,
-    session?: UserSession,
+    mitraId?: string,
   ) {
-    const activeMitraId = session?.activeMitraId;
-    if (scope === 'MITRA') {
-      await this.rolesPermissionService.hasPermission(auth.sub, {
-        permission: RolePermissionCodes.viewRoleMitra,
-        scope,
-        mitraId: activeMitraId ?? undefined,
-      });
-    } else {
-      await this.rolesPermissionService.hasPermission(auth.sub, {
-        permission: RolePermissionCodes.viewRoleInsidia,
-        scope,
-      });
-    }
+    let targetMitraId: string | undefined;
+    const isMitraScope = scope === 'MITRA';
 
-    const res = await this.rolesRepository.findRoles({
+    const actor = await this.rolesPermissionService.hasPermission(
+      request.auth.sub,
+      {
+        permission: isMitraScope
+          ? RolePermissionCodes.viewRoleMitra
+          : RolePermissionCodes.viewRoleInsidia,
+        scope,
+        mitraId: isMitraScope
+          ? (request.session.activeMitraId ?? mitraId)
+          : undefined,
+      },
+    );
+    if (isMitraScope) {
+      if (actor?.insidiaRole?.role.code === 'SUPER_ADMIN') {
+        targetMitraId = mitraId;
+      } else {
+        targetMitraId = requireActiveMitraId(request);
+      }
+    }
+    this.rolesPolicy.canManageMitra(mitraId ?? '', actor);
+
+    const res = await this.rolesRepository.findRolesByScope({
       scope,
       includeDeleted,
-      ...(scope === 'MITRA' && activeMitraId ? { mitraId: activeMitraId } : {}),
+      mitraId: targetMitraId,
     });
 
     return res;
@@ -139,10 +152,6 @@ export class RolesService implements OnModuleInit {
       throw new ConflictException('Role sistem tidak bisa dihapus');
     }
 
-    if (role._count.insidiaUsers > 0 || role._count.mitraUsers > 0) {
-      throw new ConflictException('Role masih dipakai oleh user');
-    }
-
     await this.rolesRepository.updateRole(id, {
       deletedAt: new Date(),
     });
@@ -151,6 +160,7 @@ export class RolesService implements OnModuleInit {
   }
 
   async findRolePermissions(roleId: string) {
+    console.log(`role id: ${roleId}`);
     await this.ensureRoleExists(roleId);
     return this.rolesRepository.findRolePermissions(roleId);
   }
@@ -172,23 +182,20 @@ export class RolesService implements OnModuleInit {
   }
 
   async replaceRolePermissions(
-    auth: AuthPayload,
+    request: AuthenticatedRequest,
     roleId: string,
     assignRolePermissionsDto: AssignRolePermissionsDto,
   ) {
-    console.log('Replacing role permissions with data:', {
-      authSub: auth.sub,
-      roleId,
-      permissionIds: assignRolePermissionsDto.permissionIds,
-    });
     const role = await this.ensureRoleExists(roleId);
     const isMitraRole = role.scope === 'MITRA';
+
     await this.ensurePermissionsMatchScope(
       role.scope,
       assignRolePermissionsDto.permissionIds,
     );
+
     await this.rolesPermissionService.hasPermission(
-      auth.sub,
+      request.auth.sub,
       isMitraRole
         ? {
             permission: permissionCodes.manageMitraPermissions,
@@ -199,17 +206,37 @@ export class RolesService implements OnModuleInit {
             scope: 'INSIDIA',
           },
     );
+
     return this.rolesRepository.replaceRolePermissions(
       roleId,
       assignRolePermissionsDto.permissionIds,
     );
   }
 
+  async findRoleMitraPermissions(
+    request: AuthenticatedRequest,
+    roleId: string,
+    mitraId?: string,
+  ) {
+    await this.ensureRoleExists(roleId);
+    await this.rolesPermissionService.hasPermission(request.auth.sub, {
+      permission: permissionCodes.viewMitraPermissions,
+      scope: 'MITRA',
+      requireMitraContext: true,
+      mitraId: request.session.activeMitraId ?? undefined,
+    });
+    const res = await this.rolesRepository.findMitraRolePermissions(
+      roleId,
+      mitraId,
+    );
+    return res;
+  }
+
   async replaceMitraRolePermissions(
-    auth: AuthPayload,
-    session: UserSession,
+    request: AuthenticatedRequest,
     roleId: string,
     assignRolePermissionsDto: AssignRolePermissionsDto,
+    mitraId?: string,
   ) {
     const role = await this.ensureRoleExists(roleId);
 
@@ -219,19 +246,20 @@ export class RolesService implements OnModuleInit {
       );
     }
 
-    await this.rolesPermissionService.hasPermission(auth.sub, {
+    await this.rolesPermissionService.hasPermission(request.auth.sub, {
       permission: permissionCodes.manageMitraPermissions,
       scope: 'MITRA',
       requireMitraContext: true,
-      mitraId: session.activeMitraId ?? undefined,
+      mitraId: mitraId ?? request.session.activeMitraId ?? undefined,
     });
+
     await this.ensurePermissionsMatchScope(
       role.scope,
       assignRolePermissionsDto.permissionIds,
     );
 
     return this.rolesRepository.replaceMitraRolePermissions(
-      session.activeMitraId ?? '',
+      mitraId ?? request.session.activeMitraId ?? '',
       roleId,
       assignRolePermissionsDto.permissionIds,
     );
@@ -283,11 +311,7 @@ export class RolesService implements OnModuleInit {
 
     const permissions =
       await this.permissionsRepository.findPermissionsByIds(permissionIds);
-    console.log(
-      `permissions for ids ${permissionIds}:`,
-      `permissions`,
-      permissions,
-    );
+
     if (permissions.length !== permissionIds.length) {
       throw new NotFoundException('Sebagian permission tidak ditemukan');
     }

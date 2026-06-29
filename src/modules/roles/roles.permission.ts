@@ -29,9 +29,11 @@ export class RolesPermissionService {
         permissions: ['*'],
       };
     }
+
     const actorMitraId = actor.mitraRoles?.find(
       (item) => item.mitraId === context.mitraId,
     )?.mitraId;
+
     const mitraRole = actor.mitraRoles?.find(
       (item) => item.mitraId === context.mitraId,
     )?.role;
@@ -53,6 +55,12 @@ export class RolesPermissionService {
     ) {
       throw new ForbiddenException('mitraId wajib dikirim untuk scope MITRA');
     }
+    console.log(`[DEBUG] getEffectivePermissions`, {
+      userId,
+      context,
+      actorMitraId,
+      mitraRole,
+    });
     const roleId =
       context.scope === 'INSIDIA'
         ? actor.insidiaRole?.role.id

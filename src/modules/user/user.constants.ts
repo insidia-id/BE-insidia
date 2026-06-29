@@ -137,47 +137,57 @@ const userMitraRoleSelect = {
     },
   },
 } satisfies Prisma.UserMitraRoleSelect;
-export const adminUserListSelect = {
-  email: true,
-  name: true,
-  createdAt: true,
-  updatedAt: true,
-  deletedAt: true,
-  status: true,
-  id: true,
-  image: true,
-  insidiaRole: {
-    select: {
-      role: {
-        select: {
-          id: true,
-          code: true,
+
+export function adminUserListSelect(mitraId?: string) {
+  return {
+    email: true,
+    name: true,
+    createdAt: true,
+    updatedAt: true,
+    deletedAt: true,
+    status: true,
+    id: true,
+    image: true,
+    insidiaRole: {
+      select: {
+        role: {
+          select: {
+            id: true,
+            code: true,
+          },
         },
       },
     },
-  },
-  mitraRoles: {
-    select: {
-      mitra: {
-        select: {
-          id: true,
-          name: true,
-          slug: true,
+    mitraRoles: {
+      ...(mitraId
+        ? {
+            where: {
+              mitraId,
+            },
+          }
+        : {}),
+      select: {
+        mitra: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
         },
-      },
-      role: {
-        select: {
-          id: true,
-          code: true,
+        role: {
+          select: {
+            id: true,
+            code: true,
+          },
         },
+        academicProfile: true,
+        guruProfile: true,
+        muridProfile: true,
+        waliProfile: true,
       },
-      academicProfile: true,
-      guruProfile: true,
-      muridProfile: true,
-      waliProfile: true,
     },
-  },
-} satisfies Prisma.UserSelect;
+  };
+}
 
 export const adminUserSelect = {
   id: true,

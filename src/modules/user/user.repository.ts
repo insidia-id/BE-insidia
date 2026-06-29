@@ -82,7 +82,7 @@ export class UserRepository {
     const [users, total] = await this.prisma.$transaction([
       this.prisma.user.findMany({
         where,
-        select: adminUserListSelect,
+        select: adminUserListSelect(mitraId ?? undefined),
         orderBy: {
           createdAt: 'desc',
         },

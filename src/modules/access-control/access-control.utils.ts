@@ -162,19 +162,27 @@ export function getInsidiaPermissionCodes(entity: InsidiaAccessCarrier) {
     ) ?? []
   );
 }
+export function getMitraPermissionCodes(
+  entity: MitraAccessCarrier,
+  activeMitraId?: string | null,
+) {
+  if (!activeMitraId) {
+    return [];
+  }
 
-export function getMitraPermissionCodes(entity: MitraAccessCarrier) {
   return [
     ...new Set(
-      entity.mitraRoles?.flatMap((mitraRole) => [
-        ...(mitraRole.role.permissions?.map(
-          ({ permission }) => permission.code,
-        ) ?? []),
+      entity.mitraRoles
+        ?.filter((mitraRole) => mitraRole.mitraId === activeMitraId)
+        .flatMap((mitraRole) => [
+          ...(mitraRole.role.permissions?.map(
+            ({ permission }) => permission.code,
+          ) ?? []),
 
-        ...(mitraRole.role.mitraRolePermissions
-          ?.filter((item) => item.mitraId === mitraRole.mitraId)
-          .map(({ permission }) => permission.code) ?? []),
-      ]) ?? [],
+          ...(mitraRole.role.mitraRolePermissions?.map(
+            ({ permission }) => permission.code,
+          ) ?? []),
+        ]) ?? [],
     ),
   ];
 }

@@ -13,6 +13,7 @@ import { RolesPermissionService } from '../roles/roles.permission';
 import { AuthPayload } from '../auth/auth.types';
 import { mitraPermissionCode } from './mitra.constants';
 import { MitraFilter } from './mitra.types';
+import { mapCreateUserData } from './mitra.mapper';
 
 @Injectable()
 export class MitraService {
@@ -29,11 +30,8 @@ export class MitraService {
       scope: 'MITRA',
     });
     try {
-      return await this.mitraRepository.create({
-        name: createMitraDto.name,
-        slug,
-        type: createMitraDto.type,
-      });
+      const createdMitra = mapCreateUserData(createMitraDto, slug);
+      return await this.mitraRepository.create(createdMitra);
     } catch (error) {
       this.handlePrismaError(error);
     }
@@ -54,15 +52,12 @@ export class MitraService {
   }
 
   async findOne(auth: AuthPayload, mitraId: string) {
-    const mitra = await this.mitraRepository.findById(mitraId);
+    const mitra = await this.ensureMitraExists(mitraId);
     await this.rolePermissionService.hasPermission(auth.sub, {
       permission: mitraPermissionCode.view,
       scope: 'MITRA',
       mitraId,
     });
-    if (!mitra || mitra.deletedAt) {
-      throw new NotFoundException('Mitra tidak ditemukan');
-    }
 
     return mitra;
   }
@@ -72,16 +67,15 @@ export class MitraService {
     mitraId: string,
     updateMitraDto: UpdateMitraDto,
   ) {
-    await this.findOne(auth, mitraId);
+    const slug = normalizeMitraSlug(updateMitraDto.name);
+    await this.ensureMitraExists(mitraId);
     await this.rolePermissionService.hasPermission(auth.sub, {
       permission: mitraPermissionCode.update,
       scope: 'MITRA',
       mitraId,
     });
-    if (updateMitraDto.slug) {
-      const existing = await this.mitraRepository.findBySlug(
-        updateMitraDto.slug,
-      );
+    if (slug) {
+      const existing = await this.mitraRepository.findBySlug(slug);
       if (existing && existing.id !== mitraId && !existing.deletedAt) {
         throw new ConflictException('Slug mitra sudah digunakan');
       }
@@ -92,9 +86,7 @@ export class MitraService {
         ...(updateMitraDto.name !== undefined
           ? { name: updateMitraDto.name }
           : {}),
-        ...(updateMitraDto.slug !== undefined
-          ? { slug: updateMitraDto.slug }
-          : {}),
+        ...(slug ? { slug } : {}),
         ...(updateMitraDto.type !== undefined
           ? { type: updateMitraDto.type }
           : {}),
@@ -105,7 +97,7 @@ export class MitraService {
   }
 
   async remove(auth: AuthPayload, mitraId: string) {
-    await this.findOne(auth, mitraId);
+    await this.ensureMitraExists(mitraId);
     await this.mitraRepository.softDelete(mitraId);
     return {
       message: 'Mitra berhasil dihapus',
@@ -113,7 +105,7 @@ export class MitraService {
   }
 
   async findMembers(auth: AuthPayload, mitraId: string) {
-    await this.findOne(auth, mitraId);
+    await this.ensureMitraExists(mitraId);
     return this.mitraRepository.findMembersByMitraId(mitraId);
   }
 
@@ -122,7 +114,7 @@ export class MitraService {
     mitraId: string,
     createMitraMemberDto: CreateMitraMemberDto,
   ) {
-    await this.findOne(auth, mitraId);
+    await this.ensureMitraExists(mitraId);
 
     const [user, role] = await Promise.all([
       this.mitraRepository.findUserById(createMitraMemberDto.userId),
@@ -177,7 +169,7 @@ export class MitraService {
   }
 
   async removeMember(auth: AuthPayload, mitraId: string, memberId: string) {
-    await this.findOne(auth, mitraId);
+    await this.ensureMitraExists(mitraId);
     const member = await this.mitraRepository.findMemberById(memberId);
 
     if (!member || member.mitraId !== mitraId) {
@@ -190,6 +182,13 @@ export class MitraService {
     };
   }
 
+  private async ensureMitraExists(mitraId: string) {
+    const mitra = await this.mitraRepository.findById(mitraId);
+    if (!mitra || mitra.deletedAt) {
+      throw new NotFoundException('Mitra tidak ditemukan');
+    }
+    return mitra;
+  }
   private async ensureSlugAvailable(slug: string) {
     const existing = await this.mitraRepository.findBySlug(slug);
 
