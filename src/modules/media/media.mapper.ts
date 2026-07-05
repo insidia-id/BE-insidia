@@ -10,6 +10,51 @@ type MediaRecord = Prisma.MediaGetPayload<{
   select: typeof mediaSelect;
 }>;
 
+type ModuleRecord = NonNullable<MediaRecord['module']>;
+
+/**
+ * Get courseId from module based on its domain
+ */
+export function getCourseIdFromModule(module: ModuleRecord): string {
+  if (module.courseInsidiaId && module.courseInsidia) {
+    return module.courseInsidia.course.id;
+  }
+  if (module.classGroupCourseId && module.classGroupCourse?.courseMitra) {
+    return module.classGroupCourse.courseMitra.course.id;
+  }
+  throw new Error('Module tidak memiliki domain yang valid');
+}
+
+/**
+ * Get course from module based on its domain
+ */
+function getCourseFromModule(module: ModuleRecord) {
+  if (module.courseInsidiaId && module.courseInsidia) {
+    return module.courseInsidia.course;
+  }
+  if (module.classGroupCourseId && module.classGroupCourse?.courseMitra) {
+    return module.classGroupCourse.courseMitra.course;
+  }
+  throw new Error('Module tidak memiliki domain yang valid');
+}
+
+/**
+ * Get courseId from media item
+ */
+export function getCourseIdFromMedia(media: MediaRecord): string {
+  // If media is attached to course directly
+  if (media.courseId) {
+    return media.courseId;
+  }
+
+  // If media is attached to module, get courseId through domain
+  if (media.module) {
+    return getCourseIdFromModule(media.module);
+  }
+
+  throw new Error('Media tidak memiliki course yang valid');
+}
+
 export function inferMediaType(
   mimeType: string | undefined,
   requestedType?: MediaType,
@@ -135,7 +180,7 @@ export function mapUpdateMediaData(
 }
 
 export function serializeMedia(media: MediaRecord) {
-  return {
+  const baseSerialization = {
     ...media,
     course:
       media.course === null
@@ -145,17 +190,40 @@ export function serializeMedia(media: MediaRecord) {
             title: media.course.title,
             creatorId: media.course.creatorId,
           },
-    module:
-      media.module === null
-        ? null
-        : {
-            id: media.module.id,
-            title: media.module.title,
-            course: {
-              id: media.module.course.id,
-              title: media.module.course.title,
-              creatorId: media.module.course.creatorId,
-            },
-          },
+  };
+
+  // If media is attached to module, serialize with domain-aware course info
+  if (media.module) {
+    const course = getCourseFromModule(media.module);
+
+    // Determine creatorId based on domain
+    let creatorId: string | undefined;
+    if (media.module.courseInsidiaId && media.module.courseInsidia) {
+      creatorId = media.module.courseInsidia.course.creatorId;
+    } else if (
+      media.module.classGroupCourseId &&
+      media.module.classGroupCourse
+    ) {
+      creatorId = media.module.classGroupCourse.teacherId;
+    }
+
+    return {
+      ...baseSerialization,
+      module: {
+        id: media.module.id,
+        title: media.module.title,
+        course: {
+          id: course.id,
+          title: course.title,
+          creatorId,
+        },
+      },
+    };
+  }
+
+  // If media is attached to course or other entities
+  return {
+    ...baseSerialization,
+    module: null,
   };
 }

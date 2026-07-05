@@ -14,7 +14,7 @@ import {
 import { DuplicateUserFieldError } from './user.errors';
 import { CreateUserDto } from './dto/create-user.dto';
 import { mapBulkUploadUserUpsertData, normalizeEmail } from './user.mapper';
-import { RoleCode } from './user.types';
+import { RoleCode } from '../../shared/types/types';
 
 @Injectable()
 export class UserRepository {

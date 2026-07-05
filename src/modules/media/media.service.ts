@@ -13,6 +13,8 @@ import type { UploadMediaDto } from './dto/upload-media.dto';
 import {
   assertMediaFile,
   buildCourseMediaObjectKey,
+  getCourseIdFromMedia,
+  getCourseIdFromModule,
   mapCreateCourseMediaData,
   mapCreateModuleMediaData,
   mapUpdateMediaData,
@@ -39,7 +41,11 @@ export class MediaService {
     auth: AuthPayload,
   ) {
     const file = assertMediaFile(fileInput);
-    await this.courseService.ensureCourseAccess(courseId, auth);
+    const { actor, course } = await this.courseService.ensureCourseAccess(
+      courseId,
+      auth,
+    );
+    this.mediaPolicy.canManage(actor, { course, module: null }, auth);
 
     const objectKey = buildCourseMediaObjectKey(courseId, file.originalname);
     const uploaded = await this.r2Service.uploadObject({
@@ -74,10 +80,18 @@ export class MediaService {
   ) {
     const file = assertMediaFile(fileInput);
     const module = await this.courseModulesService.ensureModuleExists(moduleId);
-    await this.courseService.ensureCourseAccess(module.courseId, auth);
+
+    // Get courseId through domain relations
+    const courseId = getCourseIdFromModule(module);
+
+    const { actor } = await this.courseService.ensureCourseAccess(
+      courseId,
+      auth,
+    );
+    this.mediaPolicy.canManage(actor, { course: null, module }, auth);
 
     const objectKey = buildCourseMediaObjectKey(
-      module.courseId,
+      courseId,
       file.originalname,
       module.id,
     );
@@ -90,7 +104,7 @@ export class MediaService {
     try {
       const media = await this.mediaRepository.create(
         mapCreateModuleMediaData({
-          courseId: module.courseId,
+          courseId,
           moduleId: module.id,
           upload: uploadMediaDto,
           file,
@@ -116,7 +130,11 @@ export class MediaService {
 
   async findModuleMedia(moduleId: string, auth: AuthPayload) {
     const module = await this.courseModulesService.ensureModuleExists(moduleId);
-    await this.courseService.ensureCourseAccess(module.courseId, auth);
+
+    // Get courseId through domain relations
+    const courseId = getCourseIdFromModule(module);
+
+    await this.courseService.ensureCourseAccess(courseId, auth);
 
     const media = await this.mediaRepository.findModuleMedia(moduleId);
 
@@ -125,8 +143,12 @@ export class MediaService {
 
   async findOne(id: string, auth: AuthPayload) {
     const media = await this.ensureMediaExists(id);
-    const actor = await this.courseService.ensureCourseAccess(
-      media.courseId ?? media.module?.course.id ?? '',
+
+    // Get courseId through domain-aware helper
+    const courseId = getCourseIdFromMedia(media);
+
+    const { actor } = await this.courseService.ensureCourseAccess(
+      courseId,
       auth,
     );
     this.mediaPolicy.canManage(actor, media, auth);
@@ -136,8 +158,12 @@ export class MediaService {
 
   async update(id: string, updateMediaDto: UpdateMediaDto, auth: AuthPayload) {
     const media = await this.ensureMediaExists(id);
-    const actor = await this.courseService.ensureCourseAccess(
-      media.courseId ?? media.module?.course.id ?? '',
+
+    // Get courseId through domain-aware helper
+    const courseId = getCourseIdFromMedia(media);
+
+    const { actor } = await this.courseService.ensureCourseAccess(
+      courseId,
       auth,
     );
     this.mediaPolicy.canManage(actor, media, auth);
@@ -160,8 +186,12 @@ export class MediaService {
 
   async remove(id: string, auth: AuthPayload) {
     const media = await this.ensureMediaExists(id);
-    const actor = await this.courseService.ensureCourseAccess(
-      media.courseId ?? media.module?.course.id ?? '',
+
+    // Get courseId through domain-aware helper
+    const courseId = getCourseIdFromMedia(media);
+
+    const { actor } = await this.courseService.ensureCourseAccess(
+      courseId,
       auth,
     );
     this.mediaPolicy.canManage(actor, media, auth);

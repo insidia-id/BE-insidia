@@ -39,11 +39,30 @@ export class MediaRepository {
       where: {
         moduleId,
         ownerType: MediaOwnerType.MODULE,
-        module: {
-          course: {
-            deletedAt: null,
+        // Filter by active modules (non-deleted parent entities)
+        OR: [
+          {
+            module: {
+              courseInsidia: {
+                course: {
+                  deletedAt: null,
+                },
+              },
+            },
           },
-        },
+          {
+            module: {
+              classGroupCourse: {
+                deletedAt: null,
+                courseMitra: {
+                  course: {
+                    deletedAt: null,
+                  },
+                },
+              },
+            },
+          },
+        ],
       },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
       select: mediaSelect,
@@ -65,11 +84,51 @@ export class MediaRepository {
           },
           {
             ownerType: MediaOwnerType.MODULE,
-            module: {
-              is: {
-                course: {
-                  deletedAt: null,
+            OR: [
+              {
+                module: {
+                  courseInsidia: {
+                    course: {
+                      deletedAt: null,
+                    },
+                  },
                 },
+              },
+              {
+                module: {
+                  classGroupCourse: {
+                    deletedAt: null,
+                    courseMitra: {
+                      course: {
+                        deletedAt: null,
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          },
+          {
+            ownerType: MediaOwnerType.LESSON,
+            lesson: {
+              is: {
+                deletedAt: null,
+              },
+            },
+          },
+          {
+            ownerType: MediaOwnerType.REVIEW,
+            review: {
+              is: {
+                deletedAt: null,
+              },
+            },
+          },
+          {
+            ownerType: MediaOwnerType.COMMENT,
+            comment: {
+              is: {
+                deletedAt: null,
               },
             },
           },

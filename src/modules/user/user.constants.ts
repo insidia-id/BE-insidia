@@ -1,5 +1,5 @@
 import { Prisma, RoleScope } from '@prisma/client';
-import { RoleCode } from './user.types';
+import { RoleCode } from '../../shared/types/types';
 
 export const adminRoles = ['SUPER_ADMIN', 'ADMIN'] as const;
 export const adminRoleSet = new Set<string>(adminRoles);

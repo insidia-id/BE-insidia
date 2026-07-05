@@ -8,8 +8,15 @@ export type MitraActorContext = {
 
 @Injectable()
 export class MitraAcademicPolicy {
-  canAccessMitra(actor: MitraActorContext) {
-    if (actor.isSuperAdmin || actor.mitraRoleCode) {
+  canAccessMitra(
+    actor: MitraActorContext,
+    mitraId: string,
+    activeMitraId?: string,
+  ) {
+    if (actor.isSuperAdmin) {
+      return true;
+    }
+    if (activeMitraId && mitraId === activeMitraId) {
       return true;
     }
 

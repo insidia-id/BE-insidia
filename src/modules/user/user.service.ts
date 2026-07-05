@@ -24,7 +24,7 @@ import { UserRepository } from './user.repository';
 import { RolesPermissionService } from '../roles/roles.permission';
 import { SessionRedisService } from 'src/infrastruktur/redis/session.redis.service';
 import { UserSession } from '../auth/auth.types';
-import { RoleCode } from './user.types';
+import { RoleCode } from '../../shared/types/types';
 @Injectable()
 export class UserService {
   constructor(
@@ -155,7 +155,6 @@ export class UserService {
     );
 
     const res = serializeUserWithAccess(user);
-    console.log('res', JSON.stringify(res, null, 2));
     return res;
   }
 

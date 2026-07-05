@@ -34,7 +34,6 @@ export class PreviewBulkUserUseCase {
       throw new BadRequestException('File wajib diupload');
     }
     const activeMitraId = request.session.activeMitraId;
-    console.log(' session activeMitraId', activeMitraId);
     const actor = await this.userRepository.findRoleByUserId(request.auth.sub);
 
     if (!actor) {
@@ -145,12 +144,7 @@ export class PreviewBulkUserUseCase {
 
       checkedContexts.add(contextKey);
     }
-    console.log(
-      'primaryAssignment',
-      JSON.stringify(primaryAssignment, null, 2),
-    );
-    console.log('data', JSON.stringify(data, null, 2));
-    console.log('activeMitraId', activeMitraId);
+
     this.userPolicy.canCreate(
       actor,
       {

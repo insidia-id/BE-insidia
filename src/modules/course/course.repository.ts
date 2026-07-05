@@ -1,152 +1,78 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastruktur/prisma/prisma.service';
-
-export const courseListSelect = {
-  id: true,
-  creatorId: true,
-  mitraId: true,
-  curriculumId: true,
-  title: true,
-  slug: true,
-  code: true,
-  subtitle: true,
-  description: true,
-  status: true,
-  academicStatus: true,
-  level: true,
-  categoryId: true,
-  language: true,
-  price: true,
-  salePrice: true,
-  isFree: true,
-  requirements: true,
-  outcomes: true,
-  targetUsers: true,
-  totalDurationSec: true,
-  totalLessons: true,
-  publishedAt: true,
-  rejectedAt: true,
-  rejectReason: true,
-  scope: true,
-  createdAt: true,
-  updatedAt: true,
-  deletedAt: true,
-  creator: {
-    select: {
-      id: true,
-      name: true,
-      email: true,
-    },
-  },
-  category: {
-    select: {
-      id: true,
-      name: true,
-      slug: true,
-    },
-  },
-  curriculum: {
-    select: {
-      id: true,
-      name: true,
-      code: true,
-      status: true,
-    },
-  },
-  _count: {
-    select: {
-      modules: true,
-      media: true,
-      lessons: true,
-    },
-  },
-} satisfies Prisma.CourseSelect;
-
-export const courseDetailSelect = {
-  ...courseListSelect,
-  modules: {
-    orderBy: {
-      sortOrder: 'asc',
-    },
-    select: {
-      id: true,
-      title: true,
-      summary: true,
-      sortOrder: true,
-      createdAt: true,
-      updatedAt: true,
-      _count: {
-        select: {
-          lessons: true,
-          media: true,
-        },
-      },
-    },
-  },
-} satisfies Prisma.CourseSelect;
-
-export const courseAccessSelect = {
-  id: true,
-  creatorId: true,
-  mitraId: true,
-  curriculumId: true,
-  title: true,
-  code: true,
-  slug: true,
-  status: true,
-  academicStatus: true,
-  deletedAt: true,
-  price: true,
-  salePrice: true,
-  isFree: true,
-  publishedAt: true,
-  rejectedAt: true,
-  rejectReason: true,
-  scope: true,
-} satisfies Prisma.CourseSelect;
+import { RoleScope } from '@prisma/client';
+import {
+  courseAccessSelect,
+  courseInsidiaDetailSelect,
+  courseInsidiaListSelect,
+  courseMitraDetailSelect,
+  courseMitraListSelect,
+  selectCourseDetailByScope,
+  selectCourseListByScope,
+} from './course.constants';
 
 @Injectable()
 export class CourseRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(data: Prisma.CourseCreateInput) {
+  create<T extends Prisma.CourseSelect>(
+    data: Prisma.CourseCreateInput,
+    select: T,
+  ) {
     return this.prisma.course.create({
       data,
-      select: courseDetailSelect,
+      select,
     });
   }
 
-  findAll(params?: {
-    creatorId?: string;
-    scope?: Prisma.CourseWhereInput['scope'];
-    status?: Prisma.CourseWhereInput['status'];
-    mitraId?: string | null;
-  }) {
-    const { creatorId, scope, status, mitraId } = params ?? {};
+  findAll<T extends Prisma.CourseSelect>(
+    params: {
+      creatorId?: string;
+      scope: RoleScope;
+      mitraId?: string | null;
+    },
+    select: T,
+  ) {
+    const { creatorId, scope, mitraId } = params ?? {};
 
     return this.prisma.course.findMany({
       where: {
         creatorId,
         scope,
-        status,
-        mitraId,
+        ...(mitraId !== undefined
+          ? {
+              mitra: {
+                mitraId,
+              },
+            }
+          : {}),
         deletedAt: null,
       },
       orderBy: {
         createdAt: 'desc',
       },
-      select: courseListSelect,
+      select,
     });
   }
-
-  findActiveById(id: string) {
+  coursePermission(id: string) {
+    return this.prisma.course.findUnique({
+      where: { id },
+      select: {
+        creatorId: true,
+      },
+    });
+  }
+  findActiveById<T extends Prisma.CourseSelect>(
+    id: string,
+    select: T,
+  ): Promise<Prisma.CourseGetPayload<{ select: T }> | null> {
     return this.prisma.course.findFirst({
       where: {
         id,
         deletedAt: null,
       },
-      select: courseDetailSelect,
+      select,
     });
   }
 
@@ -160,11 +86,15 @@ export class CourseRepository {
     });
   }
 
-  update(id: string, data: Prisma.CourseUpdateInput) {
+  update<T extends Prisma.CourseSelect>(
+    id: string,
+    data: Prisma.CourseUpdateInput,
+    select: T,
+  ) {
     return this.prisma.course.update({
       where: { id },
       data,
-      select: courseDetailSelect,
+      select,
     });
   }
 
@@ -176,10 +106,31 @@ export class CourseRepository {
       },
       data: {
         deletedAt: new Date(),
-        status: 'ARCHIVED',
       },
     });
 
     return result.count > 0;
+  }
+  async findSubjectSlugsByPrefix(
+    prefix: string,
+    ignoredId?: string,
+  ): Promise<string[]> {
+    const subjects = await this.prisma.course.findMany({
+      where: {
+        slug: {
+          startsWith: prefix,
+        },
+        ...(ignoredId && {
+          NOT: {
+            id: ignoredId,
+          },
+        }),
+      },
+      select: {
+        slug: true,
+      },
+    });
+
+    return subjects.map((subject) => subject.slug);
   }
 }

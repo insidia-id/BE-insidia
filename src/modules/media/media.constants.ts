@@ -32,12 +32,38 @@ export const mediaSelect = {
     select: {
       id: true,
       title: true,
-      course: {
+      courseInsidiaId: true,
+      classGroupCourseId: true,
+      courseInsidia: {
         select: {
           id: true,
-          creatorId: true,
-          title: true,
-          deletedAt: true,
+          course: {
+            select: {
+              id: true,
+              creatorId: true,
+              title: true,
+              deletedAt: true,
+              scope: true,
+            },
+          },
+        },
+      },
+      classGroupCourse: {
+        select: {
+          id: true,
+          teacherId: true,
+          courseMitra: {
+            select: {
+              course: {
+                select: {
+                  id: true,
+                  title: true,
+                  deletedAt: true,
+                  scope: true,
+                },
+              },
+            },
+          },
         },
       },
     },

@@ -10,7 +10,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { CourseStatus, RoleScope } from '@prisma/client';
+import { RoleScope } from '@prisma/client';
 import {
   AccessTokenGuard,
   type AuthenticatedRequest,
@@ -37,26 +37,24 @@ export class CourseController {
     createCourseDto: CreateCourseDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.courseService.create(createCourseDto, request.auth);
+    return this.courseService.create(createCourseDto, request);
   }
 
   @Get()
   findAll(
     @Req() request: AuthenticatedRequest,
     @Query('scope') scope: RoleScope,
-    @Query('status') status?: CourseStatus,
   ) {
-    return this.courseService.findAll(
-      request.auth,
-      scope,
-      status,
-      request.session,
-    );
+    return this.courseService.findAll(request, scope);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string, @Req() request: AuthenticatedRequest) {
-    return this.courseService.findOne(id, request.auth);
+  findOne(
+    @Param('id') id: string,
+    @Req() request: AuthenticatedRequest,
+    @Query('scope') scope: RoleScope,
+  ) {
+    return this.courseService.findOne(id, request, scope);
   }
 
   @Patch(':id')
@@ -66,11 +64,15 @@ export class CourseController {
     updateCourseDto: UpdateCourseDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.courseService.update(id, updateCourseDto, request.auth);
+    return this.courseService.update(id, updateCourseDto, request);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string, @Req() request: AuthenticatedRequest) {
-    return this.courseService.remove(id, request.auth);
+  remove(
+    @Param('id') id: string,
+    @Req() request: AuthenticatedRequest,
+    @Query('scope') scope: RoleScope,
+  ) {
+    return this.courseService.remove(id, request, scope);
   }
 }

@@ -29,34 +29,80 @@ import { CourseModulesService } from './course-modules.service';
 export class CourseModulesController {
   constructor(private readonly courseModulesService: CourseModulesService) {}
 
-  @Post('courses/:courseId/modules')
-  create(
-    @Param('courseId') courseId: string,
+  /**
+   * Create module for INSIDIA domain
+   */
+  @Post('courses-insidia/:courseInsidiaId/modules')
+  createForInsidia(
+    @Param('courseInsidiaId') courseInsidiaId: string,
     @Body(new ZodValidationPipe(createCourseModuleSchema))
     createCourseModuleDto: CreateCourseModuleDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.courseModulesService.create(
-      courseId,
+    return this.courseModulesService.createForInsidia(
+      courseInsidiaId,
       createCourseModuleDto,
       request.auth,
     );
   }
 
-  @Get('courses/:courseId/modules')
-  findByCourseId(
-    @Param('courseId') courseId: string,
+  /**
+   * Create module for MITRA domain
+   */
+  @Post('class-group-courses/:classGroupCourseId/modules')
+  createForMitra(
+    @Param('classGroupCourseId') classGroupCourseId: string,
+    @Body(new ZodValidationPipe(createCourseModuleSchema))
+    createCourseModuleDto: CreateCourseModuleDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.courseModulesService.findByCourseId(courseId, request.auth);
+    return this.courseModulesService.createForMitra(
+      classGroupCourseId,
+      createCourseModuleDto,
+      request.auth,
+    );
   }
 
-  @Get('course-modules/:id')
+  /**
+   * Get modules for INSIDIA domain
+   */
+  @Get('courses-insidia/:courseInsidiaId/modules')
+  findByCourseInsidiaId(
+    @Param('courseInsidiaId') courseInsidiaId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.courseModulesService.findByCourseInsidiaId(
+      courseInsidiaId,
+      request.auth,
+    );
+  }
+
+  /**
+   * Get modules for MITRA domain
+   */
+  @Get('class-group-courses/:classGroupCourseId/modules')
+  findByClassGroupCourseId(
+    @Param('classGroupCourseId') classGroupCourseId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.courseModulesService.findByClassGroupCourseId(
+      classGroupCourseId,
+      request.auth,
+    );
+  }
+
+  /**
+   * Get single module by ID (works for both domains)
+   */
+  @Get('modules/:id')
   findOne(@Param('id') id: string, @Req() request: AuthenticatedRequest) {
     return this.courseModulesService.findOne(id, request.auth);
   }
 
-  @Patch('course-modules/:id')
+  /**
+   * Update module (works for both domains)
+   */
+  @Patch('modules/:id')
   update(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(updateCourseModuleSchema))
@@ -70,7 +116,10 @@ export class CourseModulesController {
     );
   }
 
-  @Delete('course-modules/:id')
+  /**
+   * Delete module (works for both domains)
+   */
+  @Delete('modules/:id')
   remove(@Param('id') id: string, @Req() request: AuthenticatedRequest) {
     return this.courseModulesService.remove(id, request.auth);
   }

@@ -182,7 +182,7 @@ export class MitraService {
     };
   }
 
-  private async ensureMitraExists(mitraId: string) {
+  async ensureMitraExists(mitraId: string) {
     const mitra = await this.mitraRepository.findById(mitraId);
     if (!mitra || mitra.deletedAt) {
       throw new NotFoundException('Mitra tidak ditemukan');

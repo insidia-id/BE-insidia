@@ -160,7 +160,6 @@ export class RolesService implements OnModuleInit {
   }
 
   async findRolePermissions(roleId: string) {
-    console.log(`role id: ${roleId}`);
     await this.ensureRoleExists(roleId);
     return this.rolesRepository.findRolePermissions(roleId);
   }

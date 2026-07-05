@@ -30,7 +30,7 @@ import {
   type AuthenticatedRequest,
 } from '../../shared/guards/access-token.guard';
 import { type UploadedBulkFile } from 'src/infrastruktur/queue/bullmq/bulk.types';
-import { type RoleCode } from './user.types';
+import { type RoleCode } from '../../shared/types/types';
 @UseGuards(AccessTokenGuard, RolesGuard)
 @Controller('admin/user')
 export class UserController {

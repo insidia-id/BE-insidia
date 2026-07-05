@@ -1,27 +1,50 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, RoleScope } from '@prisma/client';
 import { PrismaService } from '../../infrastruktur/prisma/prisma.service';
 
 export const courseModuleSelect = {
   id: true,
-  courseId: true,
   title: true,
   summary: true,
   sortOrder: true,
+  courseInsidiaId: true,
+  classGroupCourseId: true,
   createdAt: true,
   updatedAt: true,
-  course: {
+  courseInsidia: {
     select: {
       id: true,
-      creatorId: true,
-      title: true,
-      deletedAt: true,
+      course: {
+        select: {
+          id: true,
+          creatorId: true,
+          title: true,
+          scope: true,
+        },
+      },
+    },
+  },
+  classGroupCourse: {
+    select: {
+      id: true,
+      teacherId: true,
+      courseMitra: {
+        select: {
+          course: {
+            select: {
+              id: true,
+              title: true,
+              scope: true,
+            },
+          },
+        },
+      },
     },
   },
   _count: {
     select: {
-      lessons: true,
       media: true,
+      learningItems: true,
     },
   },
 } satisfies Prisma.ModuleSelect;
@@ -37,11 +60,28 @@ export class CourseModulesRepository {
     });
   }
 
-  findByCourseId(courseId: string) {
+  findByCourseInsidiaId(courseInsidiaId: string) {
     return this.prisma.module.findMany({
       where: {
-        courseId,
-        course: {
+        courseInsidiaId,
+        courseInsidia: {
+          course: {
+            deletedAt: null,
+          },
+        },
+      },
+      orderBy: {
+        sortOrder: 'asc',
+      },
+      select: courseModuleSelect,
+    });
+  }
+
+  findByClassGroupCourseId(classGroupCourseId: string) {
+    return this.prisma.module.findMany({
+      where: {
+        classGroupCourseId,
+        classGroupCourse: {
           deletedAt: null,
         },
       },
@@ -56,9 +96,20 @@ export class CourseModulesRepository {
     return this.prisma.module.findFirst({
       where: {
         id,
-        course: {
-          deletedAt: null,
-        },
+        OR: [
+          {
+            courseInsidia: {
+              course: {
+                deletedAt: null,
+              },
+            },
+          },
+          {
+            classGroupCourse: {
+              deletedAt: null,
+            },
+          },
+        ],
       },
       select: courseModuleSelect,
     });
@@ -76,12 +127,41 @@ export class CourseModulesRepository {
     const result = await this.prisma.module.deleteMany({
       where: {
         id,
-        course: {
-          deletedAt: null,
-        },
+        OR: [
+          {
+            courseInsidia: {
+              course: {
+                deletedAt: null,
+              },
+            },
+          },
+          {
+            classGroupCourse: {
+              deletedAt: null,
+            },
+          },
+        ],
       },
     });
 
     return result.count > 0;
+  }
+
+  // Helper to check if module belongs to INSIDIA domain
+  async isInsidiaModule(moduleId: string): Promise<boolean> {
+    const module = await this.prisma.module.findUnique({
+      where: { id: moduleId },
+      select: { courseInsidiaId: true },
+    });
+    return module?.courseInsidiaId !== null;
+  }
+
+  // Helper to check if module belongs to MITRA domain
+  async isMitraModule(moduleId: string): Promise<boolean> {
+    const module = await this.prisma.module.findUnique({
+      where: { id: moduleId },
+      select: { classGroupCourseId: true },
+    });
+    return module?.classGroupCourseId !== null;
   }
 }

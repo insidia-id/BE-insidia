@@ -19,6 +19,12 @@ import { RedisModule } from 'src/infrastruktur/redis/redis.module';
     AccessTokenGuard,
     InternalTokenGuard,
   ],
-  exports: [AuthService, AuthRepository],
+  exports: [
+    AuthService,
+    AuthRepository,
+    JwtTokenService,
+    AccessTokenGuard,
+    InternalTokenGuard,
+  ],
 })
 export class AuthModule {}

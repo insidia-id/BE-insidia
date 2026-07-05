@@ -9,9 +9,17 @@ import { CourseController } from './course.controller';
 import { CoursePolicy } from './course.policy';
 import { CourseRepository } from './course.repository';
 import { CourseService } from './course.service';
-
+import { CurriculumModule } from '../curriculum/curriculum.module';
+import { MitraModule } from '../mitra/mitra.module';
 @Module({
-  imports: [PrismaModule, RolesModule, AuthModule, MitraAcademicModule],
+  imports: [
+    PrismaModule,
+    RolesModule,
+    AuthModule,
+    MitraAcademicModule,
+    CurriculumModule,
+    MitraModule,
+  ],
   controllers: [CourseController],
   providers: [
     CourseService,

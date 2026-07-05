@@ -1,285 +1,358 @@
-import { BadRequestException } from '@nestjs/common';
+import { RoleScope } from '@prisma/client';
+import {
+  CreateCourseDto,
+  CreateCourseInsidiaDto,
+  CreateCourseMitraDto,
+  normalizeCourseSlug,
+} from './dto/create-course.dto';
+import {
+  UpdateCourseDto,
+  UpdateCourseInsidiaDto,
+  UpdateCourseMitraDto,
+} from './dto/update-course.dto';
 import { Prisma } from '@prisma/client';
 import {
-  normalizeCourseSlug,
-  type CreateCourseDto,
-} from './dto/create-course.dto';
-import type { UpdateCourseDto } from './dto/update-course.dto';
-import {
-  courseAccessSelect,
-  courseDetailSelect,
-  courseListSelect,
-} from './course.repository';
+  CourseInsidiaDetailSelect,
+  CourseInsidiaListSelect,
+  CourseMitraDetailSelect,
+  CourseMitraListSelect,
+} from './course.constants';
 
-type CourseListRecord = Prisma.CourseGetPayload<{
-  select: typeof courseListSelect;
-}>;
-
-type CourseDetailRecord = Prisma.CourseGetPayload<{
-  select: typeof courseDetailSelect;
-}>;
-
-type CourseAccessRecord = Prisma.CourseGetPayload<{
-  select: typeof courseAccessSelect;
-}>;
-
-function decimalToNumber(value: Prisma.Decimal | number) {
-  return Number(value);
+export function normalizeSlugPart(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[_\s]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
 }
 
-function decimalToNullableNumber(value: Prisma.Decimal | number | null) {
-  return value === null ? null : Number(value);
+function decimalToNumber(val: any): number {
+  if (val && typeof val.toNumber === 'function') {
+    return val.toNumber();
+  }
+  return Number(val) || 0;
 }
 
-function buildCategoryRelation(categoryId: string | null | undefined) {
-  if (categoryId === undefined) {
-    return undefined;
+function decimalToNullableNumber(val: any): number | null {
+  if (val === null || val === undefined) return null;
+  if (val && typeof val.toNumber === 'function') {
+    return val.toNumber();
   }
-
-  if (categoryId === null) {
-    return {
-      disconnect: true,
-    };
-  }
-
-  return {
-    connect: {
-      id: categoryId,
-    },
-  };
+  return Number(val) || null;
 }
 
-function buildCurriculumRelation(curriculumId: string | null | undefined) {
-  if (curriculumId === undefined) {
-    return undefined;
-  }
-
-  if (curriculumId === null) {
-    return {
-      disconnect: true,
-    };
-  }
-
-  return {
-    connect: {
-      id: curriculumId,
-    },
-  };
-}
-
-function validatePricing({
-  isFree,
-  price,
-  salePrice,
-}: {
-  isFree: boolean;
-  price: number;
-  salePrice: number | null;
-}) {
-  if (isFree) {
-    return {
-      price: 0,
-      salePrice: null,
-    };
-  }
-
-  if (salePrice !== null && salePrice > price) {
-    throw new BadRequestException(
-      'Harga promo tidak boleh lebih besar dari harga normal',
-    );
-  }
-
-  return {
-    price,
-    salePrice,
-  };
-}
-
-export function mapCreateCourseData(
-  input: CreateCourseDto,
+export function buildCreateCoursePayload(
   creatorId: string,
-  options?: {
-    slug?: string;
-  },
-): Prisma.CourseCreateInput {
-  const pricing = validatePricing({
-    isFree: input.isFree,
-    price: input.price,
-    salePrice: input.salePrice ?? null,
-  });
-
-  return {
-    title: input.title.trim(),
-    slug: options?.slug ?? input.slug ?? normalizeCourseSlug(input.title),
-    code: input.code ?? null,
-    subtitle: input.subtitle ?? null,
-    description: input.description ?? null,
-    status: input.status,
-    academicStatus: input.academicStatus,
-    level: input.level,
-    language: input.language.trim(),
-    price: pricing.price,
-    salePrice: pricing.salePrice,
-    isFree: input.isFree,
-    requirements: input.requirements,
-    outcomes: input.outcomes,
-    targetUsers: input.targetUsers,
-    publishedAt: input.status === 'PUBLISHED' ? new Date() : null,
-    rejectedAt: input.status === 'REJECTED' ? new Date() : null,
-    rejectReason:
-      input.status === 'REJECTED' ? (input.rejectReason ?? null) : null,
+  input: CreateCourseDto,
+  options?: { slug?: string },
+) {
+  const payload: Prisma.CourseCreateInput = {
     creator: {
       connect: {
         id: creatorId,
       },
     },
+    title: input.title.trim(),
+    slug: options?.slug ?? input.slug ?? normalizeCourseSlug(input.title),
+    code: input.code,
+    subtitle: input.subtitle ?? null,
+    description: input.description ?? null,
     scope: input.scope,
-    ...(input.mitraId
-      ? {
-          mitra: {
-            connect: {
-              id: input.mitraId,
-            },
-          },
-        }
-      : {}),
-    ...(input.curriculumId
-      ? {
-          curriculum: {
-            connect: {
-              id: input.curriculumId,
-            },
-          },
-        }
-      : {}),
-    ...(input.categoryId
-      ? {
-          category: {
-            connect: {
-              id: input.categoryId,
-            },
-          },
-        }
-      : {}),
+  };
+
+  return payload;
+}
+
+export function buildCreateCourseMitraPayload(input: CreateCourseMitraDto) {
+  return {
+    create: {
+      mitraId: input.mitraId,
+      curriculumId: input.curriculumId,
+      academicStatus: input.academicStatus ?? 'ACTIVE',
+    },
   };
 }
 
-export function mapUpdateCourseData(
+export function buildCreateCourseMitra(
+  creatorId: string,
+  input: CreateCourseMitraDto,
+  options?: { slug?: string },
+): Prisma.CourseCreateInput {
+  const payload = buildCreateCoursePayload(creatorId, input, options);
+
+  payload.mitra = buildCreateCourseMitraPayload(input);
+
+  return payload;
+}
+
+export function buildCreateCourseInsidiaPayload(input: CreateCourseInsidiaDto) {
+  let pricing = {
+    price: input.price,
+    salePrice: input.salePrice,
+  };
+
+  if (input.isFree) {
+    pricing = {
+      price: 0,
+      salePrice: null,
+    };
+  } else {
+    pricing.salePrice = input.salePrice ?? null;
+  }
+  return {
+    create: {
+      level: input.level,
+      price: pricing.price,
+      salePrice: pricing.salePrice,
+      isFree: input.isFree,
+      requirements: input.requirements,
+      outcomes: input.outcomes,
+      targetUsers: input.targetUsers,
+    },
+  };
+}
+
+export function buildCreateCourseInsidia(
+  creatorId: string,
+  input: CreateCourseInsidiaDto,
+  options?: { slug?: string },
+): Prisma.CourseCreateInput {
+  const payload = buildCreateCoursePayload(creatorId, input, options);
+
+  payload.insidia = buildCreateCourseInsidiaPayload(input);
+
+  return payload;
+}
+
+export function buildUpdateCoursePayload(
   input: UpdateCourseDto,
-  currentCourse: CourseAccessRecord,
-  options?: {
-    slug?: string;
-  },
+  options?: { slug?: string },
 ): Prisma.CourseUpdateInput {
-  const nextIsFree = input.isFree ?? currentCourse.isFree;
-  const nextPrice = input.price ?? decimalToNumber(currentCourse.price);
-  const nextSalePrice =
-    input.salePrice === undefined
-      ? decimalToNullableNumber(currentCourse.salePrice)
-      : input.salePrice;
+  const payload: Prisma.CourseUpdateInput = {};
 
-  const pricing = validatePricing({
-    isFree: nextIsFree,
-    price: nextPrice,
-    salePrice: nextSalePrice,
-  });
+  if (input.title !== undefined) {
+    payload.title = input.title.trim();
+  }
 
-  const nextStatus = input.status ?? currentCourse.status;
+  if (options?.slug !== undefined) {
+    payload.slug = options.slug;
+  } else if (input.slug !== undefined) {
+    payload.slug = input.slug;
+  } else if (input.title !== undefined) {
+    payload.slug = normalizeCourseSlug(input.title);
+  }
+
+  if (input.code !== undefined) {
+    payload.code = input.code;
+  }
+
+  if (input.subtitle !== undefined) {
+    payload.subtitle = input.subtitle;
+  }
+
+  if (input.description !== undefined) {
+    payload.description = input.description;
+  }
+
+  return payload;
+}
+
+export function buildUpdateCourseInsidiaPayload(
+  currentCourse: CourseInsidiaDetailSelect,
+  input: UpdateCourseInsidiaDto,
+): Prisma.CourseInsidiaUpdateOneWithoutCourseNestedInput | undefined {
+  const update: Prisma.CourseInsidiaUpdateInput = {};
+
+  if (input.level !== undefined) {
+    update.level = input.level;
+  }
 
   if (
-    nextStatus === 'REJECTED' &&
-    !(input.rejectReason ?? currentCourse.rejectReason)
+    input.price !== undefined ||
+    input.salePrice !== undefined ||
+    input.isFree !== undefined
   ) {
-    throw new BadRequestException(
-      'Alasan penolakan wajib diisi saat status course REJECTED',
-    );
+    const isFree = input.isFree ?? currentCourse.insidia?.isFree ?? false;
+
+    const price = input.price ?? decimalToNumber(currentCourse.insidia?.price);
+
+    const salePrice =
+      input.salePrice ??
+      decimalToNullableNumber(currentCourse.insidia?.salePrice);
+
+    if (isFree) {
+      update.price = 0;
+      update.salePrice = null;
+      update.isFree = true;
+    } else {
+      update.price = price;
+      update.salePrice = salePrice;
+      update.isFree = false;
+    }
+  }
+
+  if (input.requirements !== undefined) {
+    update.requirements =
+      input.requirements ?? currentCourse.insidia?.requirements ?? [];
+  }
+
+  if (input.outcomes !== undefined) {
+    update.outcomes = input.outcomes ?? currentCourse.insidia?.outcomes ?? [];
+  }
+
+  if (input.targetUsers !== undefined) {
+    update.targetUsers =
+      input.targetUsers ?? currentCourse.insidia?.targetUsers ?? [];
+  }
+
+  if (Object.keys(update).length === 0) {
+    return undefined;
   }
 
   return {
-    ...(input.title !== undefined ? { title: input.title.trim() } : {}),
-    ...(options?.slug !== undefined
-      ? { slug: options.slug }
-      : input.slug !== undefined
-        ? { slug: input.slug }
-        : {}),
-    ...(input.code !== undefined ? { code: input.code } : {}),
-    ...(input.subtitle !== undefined ? { subtitle: input.subtitle } : {}),
-    ...(input.description !== undefined
-      ? { description: input.description }
-      : {}),
-    ...(input.status !== undefined ? { status: input.status } : {}),
-    ...(input.academicStatus !== undefined
-      ? { academicStatus: input.academicStatus }
-      : {}),
-    ...(input.scope !== undefined ? { scope: input.scope } : {}),
-    ...(input.level !== undefined ? { level: input.level } : {}),
-    ...(input.language !== undefined
-      ? { language: input.language.trim() }
-      : {}),
-    ...(input.isFree !== undefined ? { isFree: nextIsFree } : {}),
-    ...(input.price !== undefined || input.isFree !== undefined
-      ? { price: pricing.price }
-      : {}),
-    ...(input.salePrice !== undefined || input.isFree !== undefined
-      ? { salePrice: pricing.salePrice }
-      : {}),
-    ...(input.requirements !== undefined
-      ? { requirements: input.requirements }
-      : {}),
-    ...(input.outcomes !== undefined ? { outcomes: input.outcomes } : {}),
-    ...(input.targetUsers !== undefined
-      ? { targetUsers: input.targetUsers }
-      : {}),
-    ...(input.categoryId !== undefined
-      ? {
-          category: buildCategoryRelation(input.categoryId),
-        }
-      : {}),
-    ...(input.curriculumId !== undefined
-      ? {
-          curriculum: buildCurriculumRelation(input.curriculumId),
-        }
-      : {}),
-    ...(nextStatus === 'PUBLISHED' && currentCourse.status !== 'PUBLISHED'
-      ? {
-          publishedAt: new Date(),
-          rejectedAt: null,
-          rejectReason: null,
-        }
-      : {}),
-    ...(nextStatus === 'REJECTED'
-      ? {
-          rejectedAt:
-            currentCourse.status === 'REJECTED' && currentCourse.rejectedAt
-              ? currentCourse.rejectedAt
-              : new Date(),
-          rejectReason: input.rejectReason ?? currentCourse.rejectReason,
-        }
-      : {}),
-    ...(input.status !== undefined &&
-    nextStatus !== 'REJECTED' &&
-    currentCourse.status === 'REJECTED'
-      ? {
-          rejectedAt: null,
-          rejectReason: null,
-        }
-      : {}),
+    update,
   };
 }
 
-export function serializeCourseListItem(course: CourseListRecord) {
+export function buildUpdateCourseInsidia(
+  currentCourse: CourseInsidiaDetailSelect,
+  input: UpdateCourseInsidiaDto,
+  options?: { slug?: string },
+): Prisma.CourseUpdateInput {
+  const payload = buildUpdateCoursePayload(input, options);
+
+  payload.insidia = buildUpdateCourseInsidiaPayload(currentCourse, input);
+
+  return payload;
+}
+
+export function buildUpdateCourseMitraPayload(
+  currentCourse: CourseMitraDetailSelect,
+  input: UpdateCourseMitraDto,
+): Prisma.CourseMitraUpdateOneWithoutCourseNestedInput | undefined {
+  const update: Prisma.CourseMitraUpdateInput = {};
+
+  if (input.curriculumId !== undefined) {
+    update.curriculum = {
+      connect: {
+        id: input.curriculumId ?? currentCourse.mitra?.curriculum?.id,
+      },
+    };
+  }
+
+  if (input.academicStatus !== undefined) {
+    update.academicStatus =
+      input.academicStatus ?? currentCourse.mitra?.academicStatus;
+  }
+
+  if (Object.keys(update).length === 0) {
+    return undefined;
+  }
+
   return {
-    ...course,
-    price: decimalToNumber(course.price),
-    salePrice: decimalToNullableNumber(course.salePrice),
+    update,
   };
 }
 
-export function serializeCourseDetail(course: CourseDetailRecord) {
+export function buildUpdateCourseMitra(
+  currentCourse: CourseMitraDetailSelect,
+  input: UpdateCourseMitraDto,
+  options?: { slug?: string },
+): Prisma.CourseUpdateInput {
+  const payload = buildUpdateCoursePayload(input, options);
+
+  payload.mitra = buildUpdateCourseMitraPayload(currentCourse, input);
+
+  return payload;
+}
+
+export function serializeCourseInsidiaListItem(
+  course: CourseInsidiaListSelect,
+) {
   return {
-    ...serializeCourseListItem(course),
-    modules: course.modules.map((module) => ({
-      ...module,
-    })),
+    id: course.id,
+
+    title: course.title,
+
+    slug: course.slug,
+
+    scope: course.scope,
+
+    createdAt: course.createdAt,
+
+    price: decimalToNumber(course.insidia?.price),
+
+    salePrice: decimalToNullableNumber(course.insidia?.salePrice),
+
+    totalModules: course.insidia?._count.modules ?? 0,
+  };
+}
+
+export function serializeCourseMitraListItem(course: CourseMitraListSelect) {
+  return {
+    id: course.id,
+
+    title: course.title,
+
+    slug: course.slug,
+
+    scope: course.scope,
+
+    createdAt: course.createdAt,
+
+    academicStatus: course.mitra?.academicStatus,
+
+    curriculum: course.mitra?.curriculum,
+
+    totalMedia: course._count.media,
+  };
+}
+
+export function serializeCourseInsidiaDetail(
+  course: CourseInsidiaDetailSelect,
+) {
+  return {
+    id: course.id,
+    title: course.title,
+    slug: course.slug,
+
+    scope: course.scope,
+
+    createdAt: course.createdAt,
+
+    level: course.insidia?.level,
+
+    price: decimalToNumber(course.insidia?.price),
+
+    salePrice: decimalToNullableNumber(course.insidia?.salePrice),
+
+    isFree: course.insidia?.isFree,
+
+    requirements: course.insidia?.requirements ?? [],
+
+    outcomes: course.insidia?.outcomes ?? [],
+
+    targetUsers: course.insidia?.targetUsers ?? [],
+  };
+}
+
+export function serializeCourseMitraDetail(course: CourseMitraDetailSelect) {
+  return {
+    id: course.id,
+
+    title: course.title,
+
+    slug: course.slug,
+
+    scope: course.scope,
+
+    createdAt: course.createdAt,
+
+    academicStatus: course.mitra?.academicStatus,
+
+    curriculum: course.mitra?.curriculum,
   };
 }
