@@ -5,6 +5,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { CourseModulesModule } from './modules/course-modules/course-modules.module';
 import { CourseModule } from './modules/course/course.module';
 import { LearningItemsModule } from './modules/learning-items/learning-items.module';
+import { LessonsModule } from './modules/lessons/lessons.module';
 import { MediaModule } from './modules/media/media.module';
 import { MitraAcademicModule } from './modules/mitra-academic/mitra-academic.module';
 import { MitraModule } from './modules/mitra/mitra.module';
@@ -20,6 +21,7 @@ import { CurriculumModule } from './modules/curriculum/curriculum.module';
 import { ClassGroupModule } from './modules/class-group/class-group.module';
 import { ClassGroupCourseModule } from './modules/class-group-course/class-group-course.module';
 import { ClassGroupStudentModule } from './modules/class-group-student/class-group-student.module';
+import { MyAcademicModule } from './modules/my-academic/my-academic.module';
 @Module({
   imports: [
     AuthModule,
@@ -32,6 +34,7 @@ import { ClassGroupStudentModule } from './modules/class-group-student/class-gro
     CourseModule,
     CourseModulesModule,
     LearningItemsModule,
+    LessonsModule,
     MediaModule,
     RedisModule,
     AcademicYearModule,
@@ -41,6 +44,7 @@ import { ClassGroupStudentModule } from './modules/class-group-student/class-gro
     ClassGroupModule,
     ClassGroupCourseModule,
     ClassGroupStudentModule,
+    MyAcademicModule,
   ],
   controllers: [AppController],
   providers: [AppService],

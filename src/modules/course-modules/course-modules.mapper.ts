@@ -2,20 +2,13 @@ import { BadRequestException } from '@nestjs/common';
 import { Prisma, RoleScope } from '@prisma/client';
 import type { CreateCourseModuleDto } from './dto/create-course-module.dto';
 import type { UpdateCourseModuleDto } from './dto/update-course-module.dto';
-import { courseModuleSelect } from './course-modules.repository';
+import {
+  ModuleDomainContext,
+  CourseModuleInsidiaRecord,
+  CourseModuleMitraRecord,
+  CourseModuleRecord,
+} from './course-modules.constants';
 
-type CourseModuleRecord = Prisma.ModuleGetPayload<{
-  select: typeof courseModuleSelect;
-}>;
-
-export type ModuleDomainContext =
-  | { domain: 'INSIDIA'; courseInsidiaId: string }
-  | { domain: 'MITRA'; classGroupCourseId: string };
-
-/**
- * Validates that exactly one domain ownership is provided
- * Enforces business rule: Module must belong to exactly ONE domain
- */
 export function validateModuleDomainOwnership(
   courseInsidiaId?: string | null,
   classGroupCourseId?: string | null,
@@ -70,13 +63,8 @@ export function mapUpdateCourseModuleData(
     ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
   };
 }
-
-export function serializeCourseModule(module: CourseModuleRecord) {
-  // Validate business rule
-  validateModuleDomainOwnership(
-    module.courseInsidiaId,
-    module.classGroupCourseId,
-  );
+export function serializeCourseModuleMitra(module: CourseModuleMitraRecord) {
+  validateModuleDomainOwnership(module.classGroupCourse?.id);
 
   const baseModule = {
     id: module.id,
@@ -85,11 +73,43 @@ export function serializeCourseModule(module: CourseModuleRecord) {
     sortOrder: module.sortOrder,
     createdAt: module.createdAt,
     updatedAt: module.updatedAt,
-    mediaCount: module._count.media,
-    learningItemsCount: module._count.learningItems,
+    totalLearningItems: module._count.learningItems,
+    totalLessons: module.learningItems.filter((item) => item.type === 'LESSON')
+      .length,
+    totalQuizzes: module.learningItems.filter((item) => item.type === 'QUIZ')
+      .length,
+    totalAssignments: module.learningItems.filter(
+      (item) => item.type === 'ASSIGNMENT',
+    ).length,
   };
 
-  // INSIDIA domain
+  return {
+    ...baseModule,
+    classGroupCourseId: module.classGroupCourse?.id,
+  };
+}
+export function serializeCourseModuleInsidia(
+  module: CourseModuleInsidiaRecord,
+) {
+  validateModuleDomainOwnership(module.courseInsidiaId);
+
+  const baseModule = {
+    id: module.id,
+    title: module.title,
+    summary: module.summary,
+    sortOrder: module.sortOrder,
+    createdAt: module.createdAt,
+    updatedAt: module.updatedAt,
+    totalLearningItems: module._count.learningItems,
+    totalLessons: module.learningItems.filter((item) => item.type === 'LESSON')
+      .length,
+    totalQuizzes: module.learningItems.filter((item) => item.type === 'QUIZ')
+      .length,
+    totalAssignments: module.learningItems.filter(
+      (item) => item.type === 'ASSIGNMENT',
+    ).length,
+  };
+
   if (module.courseInsidiaId && module.courseInsidia) {
     return {
       ...baseModule,
@@ -107,7 +127,41 @@ export function serializeCourseModule(module: CourseModuleRecord) {
     };
   }
 
-  // MITRA domain
+  throw new BadRequestException('Module tidak memiliki domain yang valid');
+}
+
+export function serializeCourseModule(module: CourseModuleRecord) {
+  validateModuleDomainOwnership(
+    module.courseInsidiaId,
+    module.classGroupCourseId,
+  );
+
+  const baseModule = {
+    id: module.id,
+    title: module.title,
+    summary: module.summary,
+    sortOrder: module.sortOrder,
+    createdAt: module.createdAt,
+    updatedAt: module.updatedAt,
+    learningItemsCount: module._count.learningItems,
+  };
+
+  if (module.courseInsidiaId && module.courseInsidia) {
+    return {
+      ...baseModule,
+      domain: 'INSIDIA' as RoleScope,
+      courseInsidiaId: module.courseInsidiaId,
+      courseInsidia: {
+        id: module.courseInsidia.id,
+        course: {
+          id: module.courseInsidia.course.id,
+          title: module.courseInsidia.course.title,
+          creatorId: module.courseInsidia.course.creatorId,
+          scope: module.courseInsidia.course.scope,
+        },
+      },
+    };
+  }
   if (module.classGroupCourseId && module.classGroupCourse) {
     return {
       ...baseModule,
@@ -128,14 +182,9 @@ export function serializeCourseModule(module: CourseModuleRecord) {
       },
     };
   }
-
-  // Should never reach here due to validation
   throw new BadRequestException('Module tidak memiliki domain yang valid');
 }
 
-/**
- * Helper to determine module's domain from the record
- */
 export function getModuleDomain(
   module: CourseModuleRecord,
 ): 'INSIDIA' | 'MITRA' {
@@ -144,9 +193,6 @@ export function getModuleDomain(
   throw new BadRequestException('Module tidak memiliki domain yang valid');
 }
 
-/**
- * Helper to get course ID from module based on domain
- */
 export function getCourseIdFromModule(module: CourseModuleRecord): string {
   if (module.courseInsidiaId && module.courseInsidia) {
     return module.courseInsidia.course.id;
@@ -160,9 +206,6 @@ export function getCourseIdFromModule(module: CourseModuleRecord): string {
   throw new BadRequestException('Tidak dapat menemukan course ID dari module');
 }
 
-/**
- * Helper to get creator/owner ID from module based on domain
- */
 export function getModuleOwnerId(module: CourseModuleRecord): string {
   if (module.courseInsidiaId && module.courseInsidia) {
     return module.courseInsidia.course.creatorId;

@@ -1,234 +1,126 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import type { AuthPayload } from '../auth/auth.types';
-import { CourseModulesRepository } from '../course-modules/course-modules.repository';
-import { UserRepository } from '../user/user.repository';
-import type { CreateLearningItemDto } from './dto/create-learning-item.dto';
-import type { UpdateLearningItemDto } from './dto/update-learning-item.dto';
 import {
-  mapCreateLearningItemData,
-  mapUpdateLearningItemData,
   serializeLearningItem,
   getLearningItemDomain,
   getLearningItemOwnerId,
 } from './learning-items.mapper';
-import { LearningItemsPolicy } from './learning-items.policy';
 import { LearningItemsRepository } from './learning-items.repository';
-
+import { CourseModulesService } from '../course-modules/course-modules.service';
+import { activeRoleCode } from 'src/shared/session/active-mitra-session';
+import { AuthenticatedRequest } from 'src/shared/guards/access-token.guard';
+import { CoursePolicy } from '../course/course.policy';
+import { LearningItemRecord } from './learning-items.constants';
 @Injectable()
 export class LearningItemsService {
   constructor(
     private readonly learningItemsRepository: LearningItemsRepository,
-    private readonly learningItemsPolicy: LearningItemsPolicy,
-    private readonly courseModulesRepository: CourseModulesRepository,
-    private readonly userRepository: UserRepository,
+    private readonly CoursePolicy: CoursePolicy,
+    private readonly courseModulesService: CourseModulesService,
   ) {}
 
-  private getActorId(auth: AuthPayload): string {
-    return auth.sub;
-  }
-
-  async create(
-    moduleId: string,
-    createLearningItemDto: CreateLearningItemDto,
-    auth: AuthPayload,
-  ) {
-    const actorId = this.getActorId(auth);
-
-    // Get module with domain relations to determine access
-    const module = await this.courseModulesRepository.findById(moduleId);
-
-    if (!module) {
-      throw new NotFoundException('Module tidak ditemukan');
+  async findByModuleId(moduleId: string, request: AuthenticatedRequest) {
+    const { activeInsidiaRole, activeMitraRole } = activeRoleCode(request);
+    const module = await this.courseModulesService.ensureModuleExists(moduleId);
+    let registration = {
+      isStudent: false,
+    };
+    if (activeMitraRole === 'MURID') {
+      registration =
+        await this.courseModulesService.ensureMuridRegisteredForModule(
+          moduleId,
+          request.auth.sub,
+        );
     }
 
-    // Get actor for authorization
-    const actor = await this.userRepository.findRoleByUserId(actorId);
-    if (!actor) {
-      throw new NotFoundException('User tidak ditemukan');
-    }
-
-    // Check authorization based on domain
-    if (module.courseInsidiaId && module.courseInsidia) {
-      this.learningItemsPolicy.canManageInsidia(
-        actor,
+    if (module.courseInsidia) {
+      this.CoursePolicy.canManageInsidia(
+        { activeMitraRole, activeInsidiaRole },
         { creatorId: module.courseInsidia.course.creatorId },
-        auth,
+        request.auth,
       );
-    } else if (module.classGroupCourseId && module.classGroupCourse) {
-      this.learningItemsPolicy.canManageMitra(
-        actor,
-        { teacherId: module.classGroupCourse.teacherId },
-        auth,
+    } else if (module.classGroupCourse) {
+      this.CoursePolicy.canView(
+        { activeMitraRole, activeInsidiaRole },
+        module.classGroupCourse?.teacherId,
+        request.auth,
+        {
+          isTeacher: false,
+          isStudent: registration.isStudent,
+        },
       );
-    } else {
-      throw new BadRequestException('Module tidak memiliki domain yang valid');
     }
 
-    try {
-      const learningItem = await this.learningItemsRepository.create(
-        mapCreateLearningItemData(moduleId, createLearningItemDto),
-      );
+    const items = await this.learningItemsRepository.findByModuleId(moduleId, {
+      studentView: registration.isStudent,
+    });
 
-      return serializeLearningItem(learningItem);
-    } catch (error) {
-      this.handlePrismaError(error);
-    }
+    return items.map((item) =>
+      serializeLearningItem(item, {
+        locked: registration.isStudent && this.isLearningItemLocked(item),
+      }),
+    );
   }
 
-  async findByModuleId(moduleId: string, auth: AuthPayload) {
-    const actorId = this.getActorId(auth);
-
-    // Get module to check access
-    const module = await this.courseModulesRepository.findById(moduleId);
-
-    if (!module) {
-      throw new NotFoundException('Module tidak ditemukan');
-    }
-
-    // Get actor for authorization
-    const actor = await this.userRepository.findRoleByUserId(actorId);
-    if (!actor) {
-      throw new NotFoundException('User tidak ditemukan');
-    }
-
-    // Check authorization based on domain
-    if (module.courseInsidiaId && module.courseInsidia) {
-      this.learningItemsPolicy.canManageInsidia(
-        actor,
-        { creatorId: module.courseInsidia.course.creatorId },
-        auth,
-      );
-    } else if (module.classGroupCourseId && module.classGroupCourse) {
-      this.learningItemsPolicy.canManageMitra(
-        actor,
-        { teacherId: module.classGroupCourse.teacherId },
-        auth,
-      );
-    } else {
-      throw new BadRequestException('Module tidak memiliki domain yang valid');
-    }
-
-    const items = await this.learningItemsRepository.findByModuleId(moduleId);
-
-    return items.map((item) => serializeLearningItem(item));
-  }
-
-  async findOne(id: string, auth: AuthPayload) {
+  async ensureCanManageLearningItem(id: string, request: AuthenticatedRequest) {
     const item = await this.ensureItemExists(id);
-    const actorId = this.getActorId(auth);
+    const { activeInsidiaRole, activeMitraRole } = activeRoleCode(request);
 
-    // Get actor for authorization
-    const actor = await this.userRepository.findRoleByUserId(actorId);
-    if (!actor) {
-      throw new NotFoundException('User tidak ditemukan');
-    }
-
-    // Check authorization based on domain
     const domain = getLearningItemDomain(item);
     const ownerId = getLearningItemOwnerId(item);
 
     if (domain === 'INSIDIA') {
-      this.learningItemsPolicy.canManageInsidia(
-        actor,
+      this.CoursePolicy.canManageInsidia(
+        { activeMitraRole, activeInsidiaRole },
         { creatorId: ownerId },
-        auth,
+        request.auth,
       );
     } else {
-      this.learningItemsPolicy.canManageMitra(
-        actor,
-        { teacherId: ownerId },
-        auth,
+      this.CoursePolicy.canManageMitra(
+        { activeMitraRole, activeInsidiaRole },
+        { creatorId: ownerId },
+        request.auth,
       );
     }
 
     return serializeLearningItem(item);
   }
 
-  async update(
-    id: string,
-    updateLearningItemDto: UpdateLearningItemDto,
-    auth: AuthPayload,
-  ) {
+  async ensureAcessToLearningItem(id: string, request: AuthenticatedRequest) {
     const item = await this.ensureItemExists(id);
-    const actorId = this.getActorId(auth);
+    const { activeInsidiaRole, activeMitraRole } = activeRoleCode(request);
 
-    // Get actor for authorization
-    const actor = await this.userRepository.findRoleByUserId(actorId);
-    if (!actor) {
-      throw new NotFoundException('User tidak ditemukan');
+    let registration = {
+      isStudent: false,
+    };
+    if (activeMitraRole === 'MURID') {
+      registration =
+        await this.courseModulesService.ensureMuridRegisteredForModule(
+          item.moduleId,
+          request.auth.sub,
+        );
     }
 
-    // Check authorization based on domain
-    const domain = getLearningItemDomain(item);
-    const ownerId = getLearningItemOwnerId(item);
+    this.CoursePolicy.canView(
+      { activeMitraRole, activeInsidiaRole },
+      getLearningItemOwnerId(item),
+      request.auth,
+      {
+        isTeacher: false,
+        isStudent: registration.isStudent,
+      },
+    );
+    this.isLearningItemAvailable(registration.isStudent, item);
 
-    if (domain === 'INSIDIA') {
-      this.learningItemsPolicy.canManageInsidia(
-        actor,
-        { creatorId: ownerId },
-        auth,
-      );
-    } else {
-      this.learningItemsPolicy.canManageMitra(
-        actor,
-        { teacherId: ownerId },
-        auth,
-      );
-    }
-
-    try {
-      const updatedItem = await this.learningItemsRepository.update(
-        id,
-        mapUpdateLearningItemData(updateLearningItemDto),
-      );
-
-      return serializeLearningItem(updatedItem);
-    } catch (error) {
-      this.handlePrismaError(error);
-    }
-  }
-
-  async remove(id: string, auth: AuthPayload) {
-    const item = await this.ensureItemExists(id);
-    const actorId = this.getActorId(auth);
-
-    // Get actor for authorization
-    const actor = await this.userRepository.findRoleByUserId(actorId);
-    if (!actor) {
-      throw new NotFoundException('User tidak ditemukan');
-    }
-
-    // Check authorization based on domain
-    const domain = getLearningItemDomain(item);
-    const ownerId = getLearningItemOwnerId(item);
-
-    if (domain === 'INSIDIA') {
-      this.learningItemsPolicy.canManageInsidia(
-        actor,
-        { creatorId: ownerId },
-        auth,
-      );
-    } else {
-      this.learningItemsPolicy.canManageMitra(
-        actor,
-        { teacherId: ownerId },
-        auth,
-      );
-    }
-
-    const deleted = await this.learningItemsRepository.remove(id);
-
-    if (!deleted) {
-      throw new NotFoundException('Learning item tidak ditemukan');
-    }
-
-    return { message: 'Learning item berhasil dihapus' };
+    return serializeLearningItem(item, {
+      locked: registration.isStudent && this.isLearningItemLocked(item),
+    });
   }
 
   async ensureItemExists(id: string) {
@@ -241,16 +133,69 @@ export class LearningItemsService {
     return item;
   }
 
-  private handlePrismaError(error: unknown): never {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === 'P2002'
-    ) {
-      throw new ConflictException(
-        'Urutan learning item sudah digunakan di module ini',
+  async ValidateLearningItemOwnership(
+    moduleId: string,
+    request: AuthenticatedRequest,
+  ) {
+    const module = await this.courseModulesService.ensureModuleExists(moduleId);
+    const { activeInsidiaRole, activeMitraRole } = activeRoleCode(request);
+    if (module.courseInsidia) {
+      this.CoursePolicy.canManageInsidia(
+        { activeMitraRole, activeInsidiaRole },
+        { creatorId: module.courseInsidia.course.creatorId },
+        request.auth,
       );
+    } else if (module.classGroupCourse) {
+      this.CoursePolicy.canManageMitra(
+        { activeMitraRole, activeInsidiaRole },
+        { creatorId: module.classGroupCourse.teacherId },
+        request.auth,
+      );
+    } else {
+      throw new BadRequestException('Module tidak memiliki domain yang valid');
+    }
+    return module;
+  }
+
+  isLearningItemLocked(item: {
+    availableFrom: Date | null;
+    availableUntil: Date | null;
+  }) {
+    const now = new Date();
+
+    if (item.availableFrom && item.availableFrom > now) {
+      return true;
     }
 
-    throw error;
+    if (item.availableUntil && item.availableUntil < now) {
+      return true;
+    }
+
+    return false;
+  }
+
+  isLearningItemAvailable(isStudent: boolean, item: LearningItemRecord) {
+    if (isStudent) {
+      if (!item.published) {
+        throw new ForbiddenException(
+          'Learning item belum dipublikasikan, silakan hubungi guru untuk mengaksesnya',
+        );
+      }
+
+      const now = new Date();
+
+      if (item.availableFrom && item.availableFrom > now) {
+        throw new ForbiddenException(
+          'Learning item belum tersedia, silakan hubungi guru untuk mengaksesnya',
+        );
+      }
+
+      if (item.availableUntil && item.availableUntil < now) {
+        throw new ForbiddenException(
+          'Learning item sudah tidak tersedia, silakan hubungi guru untuk mengaksesnya',
+        );
+      }
+    }
+    return true;
   }
 }

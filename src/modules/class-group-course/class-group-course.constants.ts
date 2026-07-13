@@ -20,6 +20,42 @@ export const classGroupCourseListSelect = {
   status: true,
   createdAt: true,
   deletedAt: true,
+  classGroup: {
+    select: {
+      id: true,
+      name: true,
+    },
+  },
+  courseMitra: {
+    select: {
+      id: true,
+      course: {
+        select: {
+          id: true,
+          title: true,
+        },
+      },
+    },
+  },
+  teacher: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+    },
+  },
+  academicYear: {
+    select: {
+      id: true,
+      name: true,
+    },
+  },
+  semester: {
+    select: {
+      id: true,
+      name: true,
+    },
+  },
 } satisfies Prisma.ClassGroupCourseSelect;
 
 export const classGroupCourseDetailSelect = {

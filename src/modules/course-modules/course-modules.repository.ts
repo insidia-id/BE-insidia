@@ -1,54 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, RoleScope } from '@prisma/client';
 import { PrismaService } from '../../infrastruktur/prisma/prisma.service';
-
-export const courseModuleSelect = {
-  id: true,
-  title: true,
-  summary: true,
-  sortOrder: true,
-  courseInsidiaId: true,
-  classGroupCourseId: true,
-  createdAt: true,
-  updatedAt: true,
-  courseInsidia: {
-    select: {
-      id: true,
-      course: {
-        select: {
-          id: true,
-          creatorId: true,
-          title: true,
-          scope: true,
-        },
-      },
-    },
-  },
-  classGroupCourse: {
-    select: {
-      id: true,
-      teacherId: true,
-      courseMitra: {
-        select: {
-          course: {
-            select: {
-              id: true,
-              title: true,
-              scope: true,
-            },
-          },
-        },
-      },
-    },
-  },
-  _count: {
-    select: {
-      media: true,
-      learningItems: true,
-    },
-  },
-} satisfies Prisma.ModuleSelect;
-
+import {
+  courseModuleMitraSelect,
+  courseModuleInsidiaSelect,
+  courseModuleSelect,
+} from './course-modules.constants';
 @Injectable()
 export class CourseModulesRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -56,7 +13,6 @@ export class CourseModulesRepository {
   create(data: Prisma.ModuleUncheckedCreateInput) {
     return this.prisma.module.create({
       data,
-      select: courseModuleSelect,
     });
   }
 
@@ -73,7 +29,7 @@ export class CourseModulesRepository {
       orderBy: {
         sortOrder: 'asc',
       },
-      select: courseModuleSelect,
+      select: courseModuleInsidiaSelect,
     });
   }
 
@@ -88,6 +44,31 @@ export class CourseModulesRepository {
       orderBy: {
         sortOrder: 'asc',
       },
+      select: courseModuleMitraSelect,
+    });
+  }
+
+  findModuleMitraByid(id: string) {
+    return this.prisma.module.findFirst({
+      where: {
+        id,
+      },
+      select: courseModuleMitraSelect,
+    });
+  }
+
+  findModuleInsidiaByid(id: string) {
+    return this.prisma.module.findFirst({
+      where: {
+        id,
+      },
+      select: courseModuleInsidiaSelect,
+    });
+  }
+  update(id: string, data: Prisma.ModuleUpdateInput) {
+    return this.prisma.module.update({
+      where: { id },
+      data,
       select: courseModuleSelect,
     });
   }
@@ -107,19 +88,32 @@ export class CourseModulesRepository {
           {
             classGroupCourse: {
               deletedAt: null,
+              courseMitra: {
+                course: {
+                  deletedAt: null,
+                },
+              },
             },
           },
         ],
       },
-      select: courseModuleSelect,
-    });
-  }
-
-  update(id: string, data: Prisma.ModuleUpdateInput) {
-    return this.prisma.module.update({
-      where: { id },
-      data,
-      select: courseModuleSelect,
+      select: {
+        id: true,
+        courseInsidia: {
+          select: {
+            course: {
+              select: {
+                creatorId: true,
+              },
+            },
+          },
+        },
+        classGroupCourse: {
+          select: {
+            teacherId: true,
+          },
+        },
+      },
     });
   }
 
@@ -147,7 +141,6 @@ export class CourseModulesRepository {
     return result.count > 0;
   }
 
-  // Helper to check if module belongs to INSIDIA domain
   async isInsidiaModule(moduleId: string): Promise<boolean> {
     const module = await this.prisma.module.findUnique({
       where: { id: moduleId },
@@ -156,12 +149,70 @@ export class CourseModulesRepository {
     return module?.courseInsidiaId !== null;
   }
 
-  // Helper to check if module belongs to MITRA domain
   async isMitraModule(moduleId: string): Promise<boolean> {
     const module = await this.prisma.module.findUnique({
       where: { id: moduleId },
       select: { classGroupCourseId: true },
     });
     return module?.classGroupCourseId !== null;
+  }
+  ensureMuridRegisteredForModule(moduleId: string, muridId: string) {
+    return this.prisma.module.findFirstOrThrow({
+      where: {
+        id: moduleId,
+        OR: [
+          {
+            classGroupCourse: {
+              deletedAt: null,
+              classGroup: {
+                classGroupStudents: {
+                  some: {
+                    studentId: muridId,
+                    deletedAt: null,
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+      select: {
+        classGroupCourse: {
+          select: {
+            classGroup: {
+              select: {
+                classGroupStudents: {
+                  where: {
+                    studentId: muridId,
+                    deletedAt: null,
+                  },
+                  select: {
+                    studentId: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+  ensureTeacherAssignedForModule(moduleId: string, teacherId: string) {
+    return this.prisma.module.findFirstOrThrow({
+      where: {
+        id: moduleId,
+        classGroupCourse: {
+          deletedAt: null,
+          teacherId,
+        },
+      },
+      select: {
+        classGroupCourse: {
+          select: {
+            teacherId: true,
+          },
+        },
+      },
+    });
   }
 }

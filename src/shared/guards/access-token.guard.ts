@@ -26,7 +26,6 @@ export class AccessTokenGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext) {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
-
     const token = getBearerToken(request);
 
     if (!token) {
@@ -34,9 +33,7 @@ export class AccessTokenGuard implements CanActivate {
     }
 
     const auth = this.jwtTokenService.verifyAccessToken(token);
-
     const user = await this.authService.getSessionStatus(auth);
-
     if (!user) {
       throw new UnauthorizedException({
         code: 'USER_NOT_FOUND',

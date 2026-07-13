@@ -9,6 +9,9 @@ export const createCourseModuleSchema = z.object({
   title: z.string().trim().min(1, 'judul module wajib diisi'),
   summary: optionalNullableStringSchema,
   sortOrder: z.coerce.number().int().min(0).optional().default(0),
+  mitraId: z.string().trim().optional(),
+  classGroupCourseId: optionalNullableStringSchema,
+  courseInsidiaId: optionalNullableStringSchema,
 });
 
 export type CreateCourseModuleDto = z.infer<typeof createCourseModuleSchema>;

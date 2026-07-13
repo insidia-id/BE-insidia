@@ -1,15 +1,5 @@
-import { AcademicStatus } from '@prisma/client';
-
-export type ClassGroupCourse = {
-  id: string;
-  mitraId: string;
-  classGroupId: string;
-  courseMitraId: string | null;
-  teacherId: string;
-  academicYearId: string;
-  semesterId: string;
-  status: AcademicStatus;
-  createdAt: Date;
-  updatedAt?: Date | null;
-  deletedAt?: Date | null;
-};
+import { classGroupCourseListSelect } from './class-group-course.constants';
+import type { Prisma } from '@prisma/client';
+export type ClassGroupListCourse = Prisma.ClassGroupCourseGetPayload<{
+  select: typeof classGroupCourseListSelect;
+}>;

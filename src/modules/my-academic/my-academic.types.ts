@@ -19,9 +19,9 @@ export type MyClassGroupStudent = Prisma.ClassGroupStudentGetPayload<{
 }>;
 
 export type MyCourseTeacher = Prisma.CourseGetPayload<{
-  select: typeof findMyCoursesTeacherSelect;
+  select: ReturnType<typeof findMyCoursesTeacherSelect>;
 }>;
 
 export type MyCourseStudent = Prisma.CourseGetPayload<{
-  select: typeof findMyCoursesStudentSelect;
+  select: ReturnType<typeof findMyCoursesStudentSelect>;
 }>;

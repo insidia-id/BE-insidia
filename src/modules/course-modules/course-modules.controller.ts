@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -23,15 +24,13 @@ import {
   type UpdateCourseModuleDto,
 } from './dto/update-course-module.dto';
 import { CourseModulesService } from './course-modules.service';
-
+import { requireActiveMitraId } from 'src/shared/session/active-mitra-session';
+import { RoleScope } from '@prisma/client';
 @UseGuards(AccessTokenGuard)
 @Controller('admin')
 export class CourseModulesController {
   constructor(private readonly courseModulesService: CourseModulesService) {}
 
-  /**
-   * Create module for INSIDIA domain
-   */
   @Post('courses-insidia/:courseInsidiaId/modules')
   createForInsidia(
     @Param('courseInsidiaId') courseInsidiaId: string,
@@ -42,13 +41,10 @@ export class CourseModulesController {
     return this.courseModulesService.createForInsidia(
       courseInsidiaId,
       createCourseModuleDto,
-      request.auth,
+      request,
     );
   }
 
-  /**
-   * Create module for MITRA domain
-   */
   @Post('class-group-courses/:classGroupCourseId/modules')
   createForMitra(
     @Param('classGroupCourseId') classGroupCourseId: string,
@@ -56,30 +52,23 @@ export class CourseModulesController {
     createCourseModuleDto: CreateCourseModuleDto,
     @Req() request: AuthenticatedRequest,
   ) {
+    const activeMitraId = requireActiveMitraId(
+      request,
+      createCourseModuleDto.mitraId,
+    );
     return this.courseModulesService.createForMitra(
       classGroupCourseId,
       createCourseModuleDto,
-      request.auth,
+      request,
+      activeMitraId,
     );
   }
 
-  /**
-   * Get modules for INSIDIA domain
-   */
   @Get('courses-insidia/:courseInsidiaId/modules')
-  findByCourseInsidiaId(
-    @Param('courseInsidiaId') courseInsidiaId: string,
-    @Req() request: AuthenticatedRequest,
-  ) {
-    return this.courseModulesService.findByCourseInsidiaId(
-      courseInsidiaId,
-      request.auth,
-    );
+  findByCourseInsidiaId(@Param('courseInsidiaId') courseInsidiaId: string) {
+    return this.courseModulesService.findByCourseInsidiaId(courseInsidiaId);
   }
 
-  /**
-   * Get modules for MITRA domain
-   */
   @Get('class-group-courses/:classGroupCourseId/modules')
   findByClassGroupCourseId(
     @Param('classGroupCourseId') classGroupCourseId: string,
@@ -87,21 +76,15 @@ export class CourseModulesController {
   ) {
     return this.courseModulesService.findByClassGroupCourseId(
       classGroupCourseId,
-      request.auth,
+      request,
     );
   }
 
-  /**
-   * Get single module by ID (works for both domains)
-   */
   @Get('modules/:id')
   findOne(@Param('id') id: string, @Req() request: AuthenticatedRequest) {
-    return this.courseModulesService.findOne(id, request.auth);
+    return this.courseModulesService.findOne(id, request);
   }
 
-  /**
-   * Update module (works for both domains)
-   */
   @Patch('modules/:id')
   update(
     @Param('id') id: string,
@@ -109,18 +92,11 @@ export class CourseModulesController {
     updateCourseModuleDto: UpdateCourseModuleDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.courseModulesService.update(
-      id,
-      updateCourseModuleDto,
-      request.auth,
-    );
+    return this.courseModulesService.update(id, updateCourseModuleDto, request);
   }
 
-  /**
-   * Delete module (works for both domains)
-   */
   @Delete('modules/:id')
   remove(@Param('id') id: string, @Req() request: AuthenticatedRequest) {
-    return this.courseModulesService.remove(id, request.auth);
+    return this.courseModulesService.remove(id, request);
   }
 }

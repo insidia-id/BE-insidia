@@ -5,47 +5,42 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, RoleScope } from '@prisma/client';
 import type { AuthPayload } from '../auth/auth.types';
 import type { CreateCourseModuleDto } from './dto/create-course-module.dto';
 import type { UpdateCourseModuleDto } from './dto/update-course-module.dto';
 import {
   mapCreateCourseModuleData,
   mapUpdateCourseModuleData,
+  serializeCourseModuleInsidia,
+  serializeCourseModuleMitra,
   serializeCourseModule,
   getModuleDomain,
   getModuleOwnerId,
-  type ModuleDomainContext,
 } from './course-modules.mapper';
-import { CourseModulesPolicy } from './course-modules.policy';
+import { ModuleDomainContext } from './course-modules.constants';
 import { CourseModulesRepository } from './course-modules.repository';
 import { PrismaService } from '../../infrastruktur/prisma/prisma.service';
-import { UserRepository } from '../user/user.repository';
-
+import { ClassGroupCourseService } from '../class-group-course/class-group-course.service';
+import { AuthenticatedRequest } from 'src/shared/guards/access-token.guard';
+import { ClassGroupService } from '../class-group/class-group.service';
+import { activeRoleCode } from '../../shared/session/active-mitra-session';
+import { CoursePolicy } from '../course/course.policy';
 @Injectable()
 export class CourseModulesService {
   constructor(
     private readonly courseModulesRepository: CourseModulesRepository,
-    private readonly courseModulesPolicy: CourseModulesPolicy,
+    private readonly coursePolicy: CoursePolicy,
     private readonly prisma: PrismaService,
-    private readonly userRepository: UserRepository,
+    private readonly classGroupService: ClassGroupService,
+    private readonly classGroupCourseService: ClassGroupCourseService,
   ) {}
 
-  private getActorId(auth: AuthPayload): string {
-    return auth.sub;
-  }
-
-  /**
-   * Create module for INSIDIA domain
-   */
   async createForInsidia(
     courseInsidiaId: string,
     createCourseModuleDto: CreateCourseModuleDto,
-    auth: AuthPayload,
+    request: AuthenticatedRequest,
   ) {
-    const actorId = this.getActorId(auth);
-
-    // Verify CourseInsidia exists and get creator
     const courseInsidia = await this.prisma.courseInsidia.findFirst({
       where: {
         id: courseInsidiaId,
@@ -69,18 +64,13 @@ export class CourseModulesService {
       throw new NotFoundException('Course Insidia tidak ditemukan');
     }
 
-    // Get actor and check authorization
-    const actor = await this.userRepository.findRoleByUserId(actorId);
-    if (!actor) {
-      throw new NotFoundException('User tidak ditemukan');
-    }
-    this.courseModulesPolicy.canManageInsidia(
-      actor,
+    const { activeInsidiaRole, activeMitraRole } = activeRoleCode(request);
+    this.coursePolicy.canManageInsidia(
+      { activeMitraRole, activeInsidiaRole },
       courseInsidia.course,
-      auth,
+      request.auth,
     );
 
-    // Create module
     const domainContext: ModuleDomainContext = {
       domain: 'INSIDIA',
       courseInsidiaId,
@@ -91,55 +81,30 @@ export class CourseModulesService {
         mapCreateCourseModuleData(domainContext, createCourseModuleDto),
       );
 
-      return serializeCourseModule(module);
+      return module;
     } catch (error) {
       this.handlePrismaError(error);
     }
   }
 
-  /**
-   * Create module for MITRA domain
-   */
   async createForMitra(
     classGroupCourseId: string,
     createCourseModuleDto: CreateCourseModuleDto,
-    auth: AuthPayload,
+    request: AuthenticatedRequest,
+    activeMitraId: string,
   ) {
-    // Verify ClassGroupCourse exists and get teacher
-    const classGroupCourse = await this.prisma.classGroupCourse.findFirst({
-      where: {
-        id: classGroupCourseId,
-        deletedAt: null,
-      },
-      select: {
-        id: true,
-        teacherId: true,
-        courseMitra: {
-          select: {
-            course: {
-              select: {
-                id: true,
-                title: true,
-              },
-            },
-          },
-        },
-      },
-    });
+    const classGroupCourse =
+      await this.classGroupCourseService.ensureClassGroupCourse(
+        classGroupCourseId,
+        activeMitraId,
+      );
+    const { activeInsidiaRole, activeMitraRole } = activeRoleCode(request);
 
-    if (!classGroupCourse) {
-      throw new NotFoundException('Class Group Course tidak ditemukan');
-    }
-
-    // Get actor and check authorization
-    const actorId = this.getActorId(auth);
-    const actor = await this.userRepository.findRoleByUserId(actorId);
-    if (!actor) {
-      throw new NotFoundException('User tidak ditemukan');
-    }
-    this.courseModulesPolicy.canManageMitra(actor, classGroupCourse, auth);
-
-    // Create module
+    this.coursePolicy.canManageMitra(
+      { activeMitraRole, activeInsidiaRole },
+      { creatorId: classGroupCourse.teacherId },
+      request.auth,
+    );
     const domainContext: ModuleDomainContext = {
       domain: 'MITRA',
       classGroupCourseId,
@@ -150,17 +115,13 @@ export class CourseModulesService {
         mapCreateCourseModuleData(domainContext, createCourseModuleDto),
       );
 
-      return serializeCourseModule(module);
+      return module;
     } catch (error) {
       this.handlePrismaError(error);
     }
   }
 
-  /**
-   * Find modules by CourseInsidia ID
-   */
-  async findByCourseInsidiaId(courseInsidiaId: string, auth: AuthPayload) {
-    // Verify CourseInsidia exists
+  async findByCourseInsidiaId(courseInsidiaId: string) {
     const courseInsidia = await this.prisma.courseInsidia.findFirst({
       where: {
         id: courseInsidiaId,
@@ -177,100 +138,120 @@ export class CourseModulesService {
     const modules =
       await this.courseModulesRepository.findByCourseInsidiaId(courseInsidiaId);
 
-    return modules.map((module) => serializeCourseModule(module));
+    return modules.map((module) => serializeCourseModuleInsidia(module));
   }
 
-  /**
-   * Find modules by ClassGroupCourse ID
-   */
   async findByClassGroupCourseId(
     classGroupCourseId: string,
-    auth: AuthPayload,
+    request: AuthenticatedRequest,
   ) {
-    // Verify ClassGroupCourse exists
-    const classGroupCourse = await this.prisma.classGroupCourse.findFirst({
-      where: {
-        id: classGroupCourseId,
-        deletedAt: null,
-      },
-    });
+    const { activeInsidiaRole, activeMitraRole } = activeRoleCode(request);
 
-    if (!classGroupCourse) {
-      throw new NotFoundException('Class Group Course tidak ditemukan');
-    }
+    const classGroupCourse =
+      await this.classGroupCourseService.ensureClassGroupCourse(
+        classGroupCourseId,
+        request.session.activeMitraId,
+      );
+    const teacherId = classGroupCourse?.teacherId;
 
+    const membership =
+      await this.classGroupService.ensureStudentOrTeacherInClassGroup(
+        classGroupCourse.classGroupId,
+        request.auth.sub,
+      );
+    this.coursePolicy.canView(
+      { activeMitraRole, activeInsidiaRole },
+      teacherId,
+      request.auth,
+      membership,
+    );
     const modules =
       await this.courseModulesRepository.findByClassGroupCourseId(
         classGroupCourseId,
       );
-
-    return modules.map((module) => serializeCourseModule(module));
+    const serializedModules = modules.map((module) =>
+      serializeCourseModuleMitra(module),
+    );
+    return serializedModules;
   }
 
-  /**
-   * Find one module by ID
-   */
-  async findOne(id: string, auth: AuthPayload) {
+  async findOne(id: string, request: AuthenticatedRequest) {
     const module = await this.ensureModuleExists(id);
 
-    // Get actor and check authorization based on domain
-    const actorId = this.getActorId(auth);
-    const actor = await this.userRepository.findRoleByUserId(actorId);
-    if (!actor) {
-      throw new NotFoundException('User tidak ditemukan');
-    }
-
-    const domain = getModuleDomain(module);
-    const ownerId = getModuleOwnerId(module);
-
-    if (domain === 'INSIDIA') {
-      this.courseModulesPolicy.canManageInsidia(
-        actor,
-        { creatorId: ownerId },
-        auth,
-      );
+    if (module.classGroupCourse) {
+      return this.findMitraModuleByid(id, request);
     } else {
-      this.courseModulesPolicy.canManageMitra(
-        actor,
-        { teacherId: ownerId },
-        auth,
-      );
+      return this.findModuleInsidiaById(id, request);
     }
-
-    return serializeCourseModule(module);
   }
 
-  /**
-   * Update module
-   */
+  async findMitraModuleByid(id: string, request: AuthenticatedRequest) {
+    const { activeInsidiaRole, activeMitraRole } = activeRoleCode(request);
+    const findModule = await this.findModuleMitraById(id);
+
+    const teacherId = findModule?.classGroupCourse?.teacherId;
+
+    let isRegistered = {
+      isStudent: false,
+    };
+
+    if (activeMitraRole === 'MURID') {
+      isRegistered = await this.ensureMuridRegisteredForModule(
+        id,
+        request.auth.sub,
+      );
+    }
+
+    this.coursePolicy.canView(
+      { activeMitraRole, activeInsidiaRole },
+      teacherId,
+      request.auth,
+      {
+        isTeacher: false,
+        isStudent: isRegistered.isStudent,
+      },
+    );
+
+    const serializedModules = serializeCourseModuleMitra(findModule);
+    return serializedModules;
+  }
+
+  async findModuleInsidiaById(id: string, request: AuthenticatedRequest) {
+    const module = await this.courseModulesRepository.findModuleInsidiaByid(id);
+
+    if (!module) {
+      throw new NotFoundException('Module course tidak ditemukan');
+    }
+    const { activeInsidiaRole, activeMitraRole } = activeRoleCode(request);
+
+    this.coursePolicy.canView(
+      { activeMitraRole, activeInsidiaRole },
+      module.courseInsidia?.course.creatorId,
+      request.auth,
+    );
+    return module;
+  }
+
   async update(
     id: string,
     updateCourseModuleDto: UpdateCourseModuleDto,
-    auth: AuthPayload,
+    request: AuthenticatedRequest,
   ) {
     const module = await this.ensureModuleExists(id);
 
-    // Get actor and check authorization based on domain
-    const actorId = this.getActorId(auth);
-    const actor = await this.userRepository.findRoleByUserId(actorId);
-    if (!actor) {
-      throw new NotFoundException('User tidak ditemukan');
-    }
+    const { activeInsidiaRole, activeMitraRole } = activeRoleCode(request);
 
-    const domain = getModuleDomain(module);
-    const ownerId = getModuleOwnerId(module);
-
-    if (domain === 'INSIDIA') {
-      this.courseModulesPolicy.canManageInsidia(
-        actor,
-        { creatorId: ownerId },
-        auth,
+    if (module.courseInsidia) {
+      this.coursePolicy.canManageInsidia(
+        { activeMitraRole, activeInsidiaRole },
+        { creatorId: module.courseInsidia.course.creatorId },
+        request.auth,
       );
     } else {
-      this.courseModulesPolicy.canManageMitra(
-        actor,
-        { teacherId: ownerId },
-        auth,
+      this.coursePolicy.canManageMitra(
+        { activeMitraRole, activeInsidiaRole },
+        { creatorId: module.classGroupCourse?.teacherId },
+        request.auth,
       );
     }
 
@@ -286,33 +267,21 @@ export class CourseModulesService {
     }
   }
 
-  /**
-   * Remove module
-   */
-  async remove(id: string, auth: AuthPayload) {
+  async remove(id: string, request: AuthenticatedRequest) {
     const module = await this.ensureModuleExists(id);
+    const { activeInsidiaRole, activeMitraRole } = activeRoleCode(request);
 
-    // Get actor and check authorization based on domain
-    const actorId = this.getActorId(auth);
-    const actor = await this.userRepository.findRoleByUserId(actorId);
-    if (!actor) {
-      throw new NotFoundException('User tidak ditemukan');
-    }
-
-    const domain = getModuleDomain(module);
-    const ownerId = getModuleOwnerId(module);
-
-    if (domain === 'INSIDIA') {
-      this.courseModulesPolicy.canManageInsidia(
-        actor,
-        { creatorId: ownerId },
-        auth,
+    if (module.courseInsidia) {
+      this.coursePolicy.canManageInsidia(
+        { activeMitraRole, activeInsidiaRole },
+        { creatorId: module.courseInsidia.course.creatorId },
+        request.auth,
       );
     } else {
-      this.courseModulesPolicy.canManageMitra(
-        actor,
-        { teacherId: ownerId },
-        auth,
+      this.coursePolicy.canManageMitra(
+        { activeMitraRole, activeInsidiaRole },
+        { creatorId: module.classGroupCourse?.teacherId },
+        request.auth,
       );
     }
 
@@ -325,9 +294,15 @@ export class CourseModulesService {
     return { message: 'Module course berhasil dihapus' };
   }
 
-  /**
-   * Ensure module exists and return it
-   */
+  async findModuleMitraById(id: string) {
+    const module = await this.courseModulesRepository.findModuleMitraByid(id);
+    if (!module) {
+      throw new NotFoundException('Module course tidak ditemukan');
+    }
+
+    return module;
+  }
+
   async ensureModuleExists(id: string) {
     const module = await this.courseModulesRepository.findById(id);
 
@@ -336,6 +311,26 @@ export class CourseModulesService {
     }
 
     return module;
+  }
+
+  async ensureMuridRegisteredForModule(moduleId: string, muridId: string) {
+    const isRegistered =
+      await this.courseModulesRepository.ensureMuridRegisteredForModule(
+        moduleId,
+        muridId,
+      );
+
+    if (!isRegistered) {
+      throw new ForbiddenException(
+        'user tidak terdaftar di course ini, silahkan mendaftar terlebih dahulu',
+      );
+    }
+    const membership = {
+      isStudent:
+        (isRegistered.classGroupCourse?.classGroup.classGroupStudents.length ??
+          0) > 0,
+    };
+    return membership;
   }
 
   private handlePrismaError(error: unknown): never {

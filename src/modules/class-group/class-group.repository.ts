@@ -40,4 +40,49 @@ export class AcademicClassRepository {
       select: classGroupDetailSelect,
     });
   }
+  ensureStudentOrTeacherInClassGroup(classGroupId: string, userId: string) {
+    return this.prisma.classGroup.findFirst({
+      where: {
+        id: classGroupId,
+        OR: [
+          {
+            classGroupStudents: {
+              some: {
+                studentId: userId,
+              },
+            },
+          },
+          {
+            classGroupCourses: {
+              some: {
+                teacherId: userId,
+              },
+            },
+          },
+        ],
+      },
+      select: {
+        classGroupCourses: {
+          where: {
+            teacherId: userId,
+          },
+          select: {
+            id: true,
+            teacherId: true,
+          },
+          take: 1,
+        },
+        classGroupStudents: {
+          where: {
+            studentId: userId,
+          },
+          select: {
+            id: true,
+            studentId: true,
+          },
+          take: 1,
+        },
+      },
+    });
+  }
 }

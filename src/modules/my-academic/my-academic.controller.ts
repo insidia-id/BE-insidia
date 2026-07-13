@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, Req, UseGuards, Param } from '@nestjs/common';
 import {
   AccessTokenGuard,
   type AuthenticatedRequest,
@@ -10,13 +10,12 @@ import {
   type MyAcademicQueryDto,
 } from './dto/my-academic.dto';
 import { MyAcademicService } from './my-academic.service';
-
 @UseGuards(AccessTokenGuard)
-@Controller('mitras/academic')
+@Controller('mitras')
 export class MyAcademicController {
   constructor(private readonly service: MyAcademicService) {}
 
-  @Get('kelas-saya')
+  @Get('my-classes')
   findMyClasses(
     @Query(new ZodValidationPipe(MyAcademicQuery))
     query: MyAcademicQueryDto,
@@ -26,13 +25,22 @@ export class MyAcademicController {
     return this.service.findMyClasses(mitraId, request, query);
   }
 
-  @Get('mapel-saya')
-  findMySubjects(
+  @Get('my-courses')
+  findMyCourses(
     @Query(new ZodValidationPipe(MyAcademicQuery))
     query: MyAcademicQueryDto,
     @Req() request: AuthenticatedRequest,
   ) {
     const mitraId = requireActiveMitraId(request);
     return this.service.findMySubjects(mitraId, request, query);
+  }
+
+  @Get('my-courses/:id')
+  findMyCourseById(
+    @Param('id') id: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    const mitraId = requireActiveMitraId(request);
+    return this.service.findMyCourseById(mitraId, request, id);
   }
 }

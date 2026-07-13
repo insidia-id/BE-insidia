@@ -98,7 +98,7 @@ export class ClassGroupCourseService {
       activeMitraId,
       classGroupCoursePermissionCodes.classGroupCourse.view,
     );
-    const item = await this.ensureClassGroupCourse(id, activeMitraId);
+    const item = await this.findClassGroupCourseById(id, activeMitraId);
     return serializeClassGroupCourse(item);
   }
 
@@ -113,7 +113,7 @@ export class ClassGroupCourseService {
       activeMitraId,
       classGroupCoursePermissionCodes.classGroupCourse.update,
     );
-    const existing = await this.ensureClassGroupCourse(id, activeMitraId);
+    const existing = await this.findClassGroupCourseById(id, activeMitraId);
 
     const nextClassGroupId = dto.classGroupId ?? existing.classGroupId;
     const nextCourseMitraId = dto.courseMitraId ?? existing.courseMitraId;
@@ -159,8 +159,18 @@ export class ClassGroupCourseService {
     return { message: 'Relasi rombel mapel berhasil dihapus' };
   }
 
-  async ensureClassGroupCourse(id: string, mitraId: string) {
+  async findClassGroupCourseById(id: string, mitraId: string) {
     const item = await this.repository.findClassGroupCourseById(id);
+
+    if (!item || item.deletedAt || item.mitraId !== mitraId) {
+      throw new NotFoundException('Relasi rombel mapel tidak ditemukan');
+    }
+
+    return item;
+  }
+
+  async ensureClassGroupCourse(id: string, mitraId: string | null) {
+    const item = await this.repository.ensureClassGroupCourseExists(id);
 
     if (!item || item.deletedAt || item.mitraId !== mitraId) {
       throw new NotFoundException('Relasi rombel mapel tidak ditemukan');
@@ -184,9 +194,9 @@ export class ClassGroupCourseService {
       activeMitraId,
     );
 
-    const course = await this.courseService.ensureCourseExists(
+    const course = await this.courseService.ensureCourseMitraExists(
+      null,
       data.courseMitraId!,
-      courseMitraDetailSelect,
     );
 
     await this.access.ensureMitraRoleMember(

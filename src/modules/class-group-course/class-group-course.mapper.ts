@@ -1,10 +1,10 @@
-import type { ClassGroupCourse } from './class-group-course.types';
+import type { ClassGroupListCourse } from './class-group-course.types';
 import type {
   CreateClassGroupCourseDto,
   UpdateClassGroupCourseDto,
 } from './dto/class-group-course.dto';
 
-export function serializeClassGroupCourse(record: ClassGroupCourse) {
+export function serializeClassGroupCourse(record: ClassGroupListCourse) {
   return {
     id: record.id,
     mitraId: record.mitraId,
@@ -15,8 +15,12 @@ export function serializeClassGroupCourse(record: ClassGroupCourse) {
     semesterId: record.semesterId,
     status: record.status,
     createdAt: record.createdAt,
-    updatedAt: record.updatedAt,
     deletedAt: record.deletedAt,
+    classGroup: record.classGroup,
+    teacher: record.teacher,
+    course: record.courseMitra,
+    academicYear: record.academicYear,
+    semester: record.semester,
   };
 }
 
@@ -69,7 +73,7 @@ export function buildCreateClassGroupCourse(
 
 export function buildUpdateClassGroupCourse(
   dto: UpdateClassGroupCourseDto,
-  data: ClassGroupCourse,
+  data: ClassGroupListCourse,
 ) {
   return {
     ...(dto.classGroupId !== undefined

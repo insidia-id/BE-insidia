@@ -78,7 +78,10 @@ export class MyAcademicService {
         teacherId: request.auth.sub,
         ...termParams,
       });
-      return items.map((item) => serializeMyCourseTeacher(item));
+      const serializedItems = items.map((item) =>
+        serializeMyCourseTeacher(item),
+      );
+      return serializedItems;
     }
 
     this.access.assertCanUseStudentFeatures(actor);
@@ -88,6 +91,41 @@ export class MyAcademicService {
       ...termParams,
     });
     return items.map((item) => serializeMyCourseStudent(item));
+  }
+  async findMyCourseById(
+    mitraId: string,
+    request: AuthenticatedRequest,
+    id: string,
+  ) {
+    const actor = await this.access.ensureActor(
+      request.auth.sub,
+      mitraId,
+      MyAcademicPermissionCodes.myClassCourse.view,
+    );
+
+    if (actor.mitraRoleCode?.find((code) => code === 'GURU')) {
+      const items = await this.repository.findTeacherCourseById({
+        mitraId,
+        teacherId: request.auth.sub,
+        id,
+      });
+      if (!items) {
+        throw new NotFoundException('Mata pelajaran tidak ditemukan');
+      }
+      const serializedItems = serializeMyCourseTeacher(items);
+      return serializedItems;
+    }
+
+    this.access.assertCanUseStudentFeatures(actor);
+    const items = await this.repository.findStudentCourseById({
+      mitraId,
+      studentId: request.auth.sub,
+      id,
+    });
+    if (!items) {
+      throw new NotFoundException('Mata pelajaran tidak ditemukan');
+    }
+    return serializeMyCourseStudent(items);
   }
 
   async resolveDefaultTerm(mitraId: string, query: MitraAcademicTerm) {

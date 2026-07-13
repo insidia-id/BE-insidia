@@ -37,6 +37,7 @@ import {
   buildUpdateCourseInsidia,
   buildUpdateCourseMitra,
   normalizeSlugPart,
+  courseDetailRegistry,
 } from './course.mapper';
 import { CoursePolicy } from './course.policy';
 import { CourseRepository } from './course.repository';
@@ -44,6 +45,7 @@ import { AuthenticatedRequest } from 'src/shared/guards/access-token.guard';
 import { CurriculumService } from '../curriculum/curriculum.service';
 import { MitraService } from '../mitra/mitra.service';
 import { randomUUID } from 'crypto';
+import { activeRoleCode } from 'src/shared/session/active-mitra-session';
 
 @Injectable()
 export class CourseService {
@@ -84,22 +86,7 @@ export class CourseService {
   }
 
   async findOne(id: string, request: AuthenticatedRequest, scope: RoleScope) {
-    switch (scope) {
-      case RoleScope.INSIDIA:
-        return await this.ensureCourseAccessible(
-          request,
-          id,
-          scope,
-          courseInsidiaDetailSelect,
-        );
-      case RoleScope.MITRA:
-        return await this.ensureCourseAccessible(
-          request,
-          id,
-          scope,
-          courseMitraDetailSelect,
-        );
-    }
+    return await this.ensureCourseAccessible(request, id, scope);
   }
 
   async update(
@@ -107,7 +94,7 @@ export class CourseService {
     updateCourseDto: UpdateCourseDto,
     request: AuthenticatedRequest,
   ) {
-    const course = await this.findOne(id, request, updateCourseDto.scope);
+    const course = await this.ensureCourseExists(id, updateCourseDto.scope);
 
     const nextScope = updateCourseDto.scope;
     if (nextScope !== course.scope) {
@@ -139,8 +126,7 @@ export class CourseService {
 
   async remove(id: string, request: AuthenticatedRequest, scope: RoleScope) {
     const actorId = this.getActorId(request.auth);
-
-    const course = await this.findOne(id, request, scope);
+    const course = await this.ensureCourseExists(id, scope);
 
     const permissionCode =
       course.scope === 'MITRA'
@@ -153,8 +139,13 @@ export class CourseService {
       mitraId: request.session?.activeMitraId ?? undefined,
       requireMitraContext: course.scope === 'MITRA' ? true : false,
     });
+    const { activeInsidiaRole, activeMitraRole } = activeRoleCode(request);
 
-    this.coursePolicy.canManage(actor, course, request.auth);
+    this.coursePolicy.canManage(
+      { activeInsidiaRole, activeMitraRole },
+      course,
+      request.auth,
+    );
 
     const deleted = await this.courseRepository.softDelete(id);
 
@@ -260,9 +251,10 @@ export class CourseService {
 
     this.mitraAcademicAccessService.assertCanUseAcademicFeatures(context);
 
-    const canViewAll = actor.mitraRoles?.some(
-      (r) => r.role.code === 'AKADEMIK',
-    );
+    const canViewAll =
+      actor.insidiaRole?.role.code === 'SUPER_ADMIN' ||
+      actor.insidiaRole?.role.code === 'ADMIN' ||
+      actor.mitraRoles?.some((mitraRole) => mitraRole.role.code === 'AKADEMIK');
 
     const courses = await this.courseRepository.findAll(
       {
@@ -272,7 +264,6 @@ export class CourseService {
       },
       courseMitraListSelect,
     );
-
     return courses.map((course) => serializeCourseMitraListItem(course));
   }
 
@@ -288,9 +279,10 @@ export class CourseService {
       permission: permissionCode,
       scope: RoleScope.INSIDIA,
     });
+    const { activeInsidiaRole, activeMitraRole } = activeRoleCode(request);
 
     this.coursePolicy.canManage(
-      actor,
+      { activeMitraRole, activeInsidiaRole },
       { creatorId: course.creatorId },
       request.auth,
     );
@@ -323,8 +315,13 @@ export class CourseService {
       mitraId: request.session?.activeMitraId ?? undefined,
       requireMitraContext: true,
     });
+    const { activeInsidiaRole, activeMitraRole } = activeRoleCode(request);
 
-    this.coursePolicy.canManage(actor, course, request.auth);
+    this.coursePolicy.canManage(
+      { activeInsidiaRole, activeMitraRole },
+      course,
+      request.auth,
+    );
 
     const slug = await this.buildUpdatedMitraCourseSlug(
       course,
@@ -376,12 +373,11 @@ export class CourseService {
     return { actor, course };
   }
 
-  async ensureCourseAccessible<T extends Prisma.CourseSelect>(
+  async ensureCourseAccessible(
     request: AuthenticatedRequest,
     id: string,
     scope: RoleScope,
-    select: T,
-  ): Promise<Prisma.CourseGetPayload<{ select: T }>> {
+  ) {
     const actorId = this.getActorId(request.auth);
 
     const permissionCode =
@@ -401,19 +397,21 @@ export class CourseService {
       throw new NotFoundException('creatorId course tidak ditemukan');
     }
 
+    const { activeInsidiaRole, activeMitraRole } = activeRoleCode(request);
+
     this.coursePolicy.canManage(
-      actor,
+      { activeInsidiaRole, activeMitraRole },
       { creatorId: coursePermission.creatorId },
       request.auth,
     );
-
-    const course = await this.courseRepository.findActiveById(id, select);
-
-    if (!course) {
-      throw new NotFoundException('Mata pelajaran tidak ditemukan');
+    if (scope === RoleScope.INSIDIA) {
+      const course = await this.ensureCourseInsidiaExists(id);
+      const serializedCourse = serializeCourseInsidiaDetail(course);
+      return serializedCourse;
     }
-
-    return course;
+    const course = await this.ensureCourseMitraExists(id);
+    const serializedCourse = serializeCourseMitraDetail(course);
+    return serializedCourse;
   }
 
   private getActorId(auth: AuthPayload) {
@@ -485,7 +483,7 @@ export class CourseService {
     const curriculumId =
       updateCourseDto.curriculumId ?? course.mitra?.curriculum?.id;
     const mitraSlug = await this.ensureMitraCourseContext({
-      mitraId: course.mitra?.id ?? undefined,
+      mitraId: course.mitra?.mitraId ?? undefined,
       curriculumId: curriculumId ?? undefined,
       code,
       title,
@@ -537,15 +535,36 @@ export class CourseService {
     );
   }
 
-  async ensureCourseExists<T extends Prisma.CourseSelect>(
-    id: string,
-    select: T,
-  ): Promise<Prisma.CourseGetPayload<{ select: T }>> {
-    const course = await this.courseRepository.findActiveById(id, select);
+  async ensureCourseMitraExists(id: string | null, courseMitraId?: string) {
+    const course = await this.courseRepository.findActiveMitraById(
+      id,
+      courseMitraId,
+    );
 
     if (!course) {
       throw new NotFoundException('Mata pelajaran tidak ditemukan');
     }
+
     return course;
+  }
+
+  async ensureCourseInsidiaExists(id: string) {
+    const course = await this.courseRepository.findActiveInsidiaById(id);
+
+    if (!course) {
+      throw new NotFoundException('Mata pelajaran tidak ditemukan');
+    }
+
+    return course;
+  }
+  async ensureCourseExists(id: string, scope: RoleScope) {
+    switch (scope) {
+      case RoleScope.INSIDIA:
+        return this.ensureCourseInsidiaExists(id);
+      case RoleScope.MITRA:
+        return this.ensureCourseMitraExists(id);
+      default:
+        throw new BadRequestException('Scope course tidak valid');
+    }
   }
 }

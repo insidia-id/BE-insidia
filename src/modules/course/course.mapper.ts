@@ -12,8 +12,10 @@ import {
 } from './dto/update-course.dto';
 import { Prisma } from '@prisma/client';
 import {
+  courseInsidiaDetailSelect,
   CourseInsidiaDetailSelect,
   CourseInsidiaListSelect,
+  courseMitraDetailSelect,
   CourseMitraDetailSelect,
   CourseMitraListSelect,
 } from './course.constants';
@@ -304,7 +306,8 @@ export function serializeCourseMitraListItem(course: CourseMitraListSelect) {
     createdAt: course.createdAt,
 
     academicStatus: course.mitra?.academicStatus,
-
+    mitraId: course.mitra?.mitraId,
+    courseMitraId: course.mitra?.id,
     curriculum: course.mitra?.curriculum,
 
     totalMedia: course._count.media,
@@ -317,8 +320,10 @@ export function serializeCourseInsidiaDetail(
   return {
     id: course.id,
     title: course.title,
+    subtitle: course.subtitle,
+    description: course.description,
     slug: course.slug,
-
+    creatorId: course.creatorId,
     scope: course.scope,
 
     createdAt: course.createdAt,
@@ -330,7 +335,6 @@ export function serializeCourseInsidiaDetail(
     salePrice: decimalToNullableNumber(course.insidia?.salePrice),
 
     isFree: course.insidia?.isFree,
-
     requirements: course.insidia?.requirements ?? [],
 
     outcomes: course.insidia?.outcomes ?? [],
@@ -338,21 +342,59 @@ export function serializeCourseInsidiaDetail(
     targetUsers: course.insidia?.targetUsers ?? [],
   };
 }
+const totalsModules = (course: CourseMitraDetailSelect): number => {
+  return (
+    course.mitra?.classGroupCourses?.reduce(
+      (total, classGroupCourse) => total + classGroupCourse._count.modules,
+      0,
+    ) ?? 0
+  );
+};
 
+const totalsLearningItems = (course: CourseMitraDetailSelect): number => {
+  return (
+    course.mitra?.classGroupCourses?.reduce(
+      (total, classGroupCourse) =>
+        total +
+        classGroupCourse.modules.reduce(
+          (moduleTotal, module) => moduleTotal + module._count.learningItems,
+          0,
+        ),
+      0,
+    ) ?? 0
+  );
+};
 export function serializeCourseMitraDetail(course: CourseMitraDetailSelect) {
   return {
     id: course.id,
-
+    inimaper: 'tes123',
     title: course.title,
-
+    subtitle: course.subtitle,
+    description: course.description,
+    code: course.code,
+    creatorId: course.creatorId,
     slug: course.slug,
 
     scope: course.scope,
 
     createdAt: course.createdAt,
-
+    mitraId: course.mitra?.mitraId,
+    courseMitraId: course.mitra?.id,
     academicStatus: course.mitra?.academicStatus,
-
+    totalsModules: totalsModules(course),
+    totalsLearningItems: totalsLearningItems(course),
     curriculum: course.mitra?.curriculum,
   };
 }
+
+export const courseDetailRegistry = {
+  MITRA: {
+    select: courseMitraDetailSelect,
+    mapper: serializeCourseMitraDetail,
+  },
+
+  INSIDIA: {
+    select: courseInsidiaDetailSelect,
+    mapper: serializeCourseInsidiaDetail,
+  },
+} as const;

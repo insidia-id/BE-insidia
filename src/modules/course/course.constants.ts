@@ -15,6 +15,8 @@ export const coursePermissionCodes = {
 export const courseSelect = Prisma.validator<Prisma.CourseSelect>()({
   id: true,
   title: true,
+  subtitle: true,
+  description: true,
   creatorId: true,
   slug: true,
   code: true,
@@ -42,6 +44,8 @@ export const courseMitraListSelect = Prisma.validator<Prisma.CourseSelect>()({
   ...courseSelect,
   mitra: {
     select: {
+      id: true,
+      mitraId: true,
       academicStatus: true,
       curriculum: {
         select: {
@@ -80,11 +84,30 @@ export const courseMitraDetailSelect = Prisma.validator<Prisma.CourseSelect>()({
   mitra: {
     select: {
       id: true,
+      mitraId: true,
       academicStatus: true,
       curriculum: {
         select: {
           id: true,
           name: true,
+        },
+      },
+      classGroupCourses: {
+        select: {
+          _count: {
+            select: {
+              modules: true,
+            },
+          },
+          modules: {
+            select: {
+              _count: {
+                select: {
+                  learningItems: true,
+                },
+              },
+            },
+          },
         },
       },
     },

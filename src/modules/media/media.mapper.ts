@@ -16,11 +16,11 @@ type ModuleRecord = NonNullable<MediaRecord['module']>;
  * Get courseId from module based on its domain
  */
 export function getCourseIdFromModule(module: ModuleRecord): string {
-  if (module.courseInsidiaId && module.courseInsidia) {
+  if (module.courseInsidia?.id && module.courseInsidia) {
     return module.courseInsidia.course.id;
   }
-  if (module.classGroupCourseId && module.classGroupCourse?.courseMitra) {
-    return module.classGroupCourse.courseMitra.course.id;
+  if (module.classGroupCourse?.id && module.classGroupCourse) {
+    return module.classGroupCourse.id;
   }
   throw new Error('Module tidak memiliki domain yang valid');
 }
@@ -29,10 +29,10 @@ export function getCourseIdFromModule(module: ModuleRecord): string {
  * Get course from module based on its domain
  */
 function getCourseFromModule(module: ModuleRecord) {
-  if (module.courseInsidiaId && module.courseInsidia) {
+  if (module.courseInsidia?.id && module.courseInsidia) {
     return module.courseInsidia.course;
   }
-  if (module.classGroupCourseId && module.classGroupCourse?.courseMitra) {
+  if (module.classGroupCourse?.id && module.classGroupCourse?.courseMitra) {
     return module.classGroupCourse.courseMitra.course;
   }
   throw new Error('Module tidak memiliki domain yang valid');
@@ -198,10 +198,10 @@ export function serializeMedia(media: MediaRecord) {
 
     // Determine creatorId based on domain
     let creatorId: string | undefined;
-    if (media.module.courseInsidiaId && media.module.courseInsidia) {
+    if (media.module.courseInsidia?.id && media.module.courseInsidia) {
       creatorId = media.module.courseInsidia.course.creatorId;
     } else if (
-      media.module.classGroupCourseId &&
+      media.module.classGroupCourse?.id &&
       media.module.classGroupCourse
     ) {
       creatorId = media.module.classGroupCourse.teacherId;

@@ -40,7 +40,7 @@ export class CourseRepository {
       where: {
         creatorId,
         scope,
-        ...(mitraId !== undefined
+        ...(mitraId !== null
           ? {
               mitra: {
                 mitraId,
@@ -63,16 +63,24 @@ export class CourseRepository {
       },
     });
   }
-  findActiveById<T extends Prisma.CourseSelect>(
-    id: string,
-    select: T,
-  ): Promise<Prisma.CourseGetPayload<{ select: T }> | null> {
+  async findActiveMitraById(id?: string | null, courseMitraId?: string) {
+    return this.prisma.course.findFirst({
+      where: {
+        deletedAt: null,
+        ...(id && { id }),
+        ...(courseMitraId && { mitra: { id: courseMitraId } }),
+      },
+      select: courseMitraDetailSelect,
+    });
+  }
+
+  async findActiveInsidiaById(id: string) {
     return this.prisma.course.findFirst({
       where: {
         id,
         deletedAt: null,
       },
-      select,
+      select: courseInsidiaDetailSelect,
     });
   }
 

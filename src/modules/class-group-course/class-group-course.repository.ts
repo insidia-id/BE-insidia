@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../infrastruktur/prisma/prisma.service';
 import { Prisma } from '@prisma/client';
-import { classGroupCourseDetailSelect } from './class-group-course.constants';
+import {
+  classGroupCourseDetailSelect,
+  classGroupCourseListSelect,
+} from './class-group-course.constants';
 @Injectable()
 export class ClassGroupCourseRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -40,8 +43,8 @@ export class ClassGroupCourseRepository {
         ...(params.semesterId ? { semesterId: params.semesterId } : {}),
         deletedAt: null,
       },
-      orderBy: [{ classGroup: { name: 'asc' } }, { course: { title: 'asc' } }],
-      select: classGroupCourseDetailSelect,
+      orderBy: [{ classGroup: { name: 'asc' } }],
+      select: classGroupCourseListSelect,
     });
   }
 
@@ -49,6 +52,18 @@ export class ClassGroupCourseRepository {
     return this.prisma.classGroupCourse.findUnique({
       where: { id },
       select: classGroupCourseDetailSelect,
+    });
+  }
+  ensureClassGroupCourseExists(id: string) {
+    return this.prisma.classGroupCourse.findFirstOrThrow({
+      where: { id, deletedAt: null },
+      select: {
+        id: true,
+        mitraId: true,
+        deletedAt: true,
+        classGroupId: true,
+        teacherId: true,
+      },
     });
   }
 }

@@ -141,4 +141,25 @@ export class ClassGroupService {
 
     return item;
   }
+
+  async ensureStudentOrTeacherInClassGroup(
+    classGroupId: string,
+    userId: string,
+  ) {
+    const item = await this.repository.ensureStudentOrTeacherInClassGroup(
+      classGroupId,
+      userId,
+    );
+
+    if (!item) {
+      throw new NotFoundException(
+        'User tidak ditemukan di rombel ini, pastikan user sudah terdaftar di rombel',
+      );
+    }
+
+    return {
+      isTeacher: item.classGroupCourses.length > 0,
+      isStudent: item.classGroupStudents.length > 0,
+    };
+  }
 }

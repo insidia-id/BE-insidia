@@ -13,3 +13,11 @@ export function requireActiveMitraId(
 
   return activeMitraId;
 }
+
+export function activeRoleCode(request: AuthenticatedRequest) {
+  const activeMitraRole = request.session?.activeRoleCode;
+  const activeInsidiaRole = request.auth?.role;
+  return { activeMitraRole, activeInsidiaRole };
+}
+
+export type ActiveRoleCode = ReturnType<typeof activeRoleCode>;

@@ -33,9 +33,9 @@ export class ClassGroupCourseController {
 
   @Post('/:mitraId/class-group-courses')
   createClassGroupCourse(
-    @Body(new ZodValidationPipe(createClassGroupCourseSchema))
     @Param('mitraId')
     mitraId: string,
+    @Body(new ZodValidationPipe(createClassGroupCourseSchema))
     dto: CreateClassGroupCourseDto,
     @Req() request: AuthenticatedRequest,
   ) {
@@ -44,13 +44,18 @@ export class ClassGroupCourseController {
   }
 
   @Get('/:mitraId/class-group-courses')
-  findClassGroupCourses(
+  async findClassGroupCourses(
     @Query(new ZodValidationPipe(classGroupCourseListQuerySchema))
     query: ClassGroupCourseListQueryDto,
     @Req() request: AuthenticatedRequest,
   ) {
     const mitraId = requireActiveMitraId(request);
-    return this.service.findClassGroupCourses(mitraId, request, query);
+    const response = await this.service.findClassGroupCourses(
+      mitraId,
+      request,
+      query,
+    );
+    return response;
   }
 
   @Get('/:mitraId/class-group-courses/:id')

@@ -45,7 +45,8 @@ export class CourseController {
     @Req() request: AuthenticatedRequest,
     @Query('scope') scope: RoleScope,
   ) {
-    return this.courseService.findAll(request, scope);
+    const response = this.courseService.findAll(request, scope);
+    return response;
   }
 
   @Get(':id')
