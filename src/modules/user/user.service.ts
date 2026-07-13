@@ -25,6 +25,7 @@ import { RolesPermissionService } from '../roles/roles.permission';
 import { SessionRedisService } from 'src/infrastruktur/redis/session.redis.service';
 import { UserSession } from '../auth/auth.types';
 import { RoleCode } from '../../shared/types/types';
+import { PaginationQuery } from 'src/shared/zod/zod.schemas';
 @Injectable()
 export class UserService {
   constructor(
@@ -87,12 +88,14 @@ export class UserService {
   async findAll({
     auth,
     session,
+    pagination,
     scope,
     filter,
     roleCode,
   }: {
     scope: 'INSIDIA' | 'MITRA';
     auth: AuthPayload;
+    pagination: PaginationQuery;
     session: UserSession;
     filter?: UserFilter;
     roleCode?: RoleCode;
@@ -114,16 +117,31 @@ export class UserService {
     const normalizedRoleCode =
       roleCode && roleCode !== 'ALL' ? roleCode : undefined;
 
-    const { users, total } = await this.userRepository.findAll({
+    const {
+      users,
+      total,
+      totalPages,
+      currentPage,
+      limit,
+      hasNextPage,
+      hasPreviousPage,
+    } = await this.userRepository.findAll({
       scope,
       filter,
       mitraId: effectiveMitraId,
       roleCode: normalizedRoleCode,
       excludeRoles: excludeRoles,
+      pagination,
     });
+
     const res = {
       users: users.map((user) => serializeUserWithAccess(user)),
       total,
+      totalPages,
+      currentPage,
+      limit,
+      hasNextPage,
+      hasPreviousPage,
     };
     return res;
   }

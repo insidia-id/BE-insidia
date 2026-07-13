@@ -15,6 +15,8 @@ import { DuplicateUserFieldError } from './user.errors';
 import { CreateUserDto } from './dto/create-user.dto';
 import { mapBulkUploadUserUpsertData, normalizeEmail } from './user.mapper';
 import { RoleCode } from '../../shared/types/types';
+import { PaginationQuery } from 'src/shared/zod/zod.schemas';
+import { createPagination, getPagination } from 'src/shared/helper/helper';
 
 @Injectable()
 export class UserRepository {
@@ -62,12 +64,14 @@ export class UserRepository {
     mitraId,
     roleCode,
     excludeRoles,
+    pagination = { page: 1, limit: 10 },
   }: {
     scope: RoleScope;
     filter?: UserFilter;
     mitraId?: string | null;
     roleCode?: RoleCode;
     excludeRoles?: RoleCode[];
+    pagination: PaginationQuery;
   }) {
     const where: Prisma.UserWhereInput = {
       ...getUserFilterWhere(filter),
@@ -78,10 +82,12 @@ export class UserRepository {
         excludeRoles,
       }),
     };
-
+    const { skip, take } = getPagination(pagination.page, pagination.limit);
     const [users, total] = await this.prisma.$transaction([
       this.prisma.user.findMany({
         where,
+        skip,
+        take,
         select: adminUserListSelect(mitraId ?? undefined),
         orderBy: {
           createdAt: 'desc',
@@ -92,7 +98,10 @@ export class UserRepository {
         where,
       }),
     ]);
-    return { users, total };
+    return {
+      users,
+      ...createPagination(pagination.page, pagination.limit, total),
+    };
   }
 
   findActiveById(id: string) {

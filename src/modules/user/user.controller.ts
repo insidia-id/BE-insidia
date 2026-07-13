@@ -31,6 +31,10 @@ import {
 } from '../../shared/guards/access-token.guard';
 import { type UploadedBulkFile } from 'src/infrastruktur/queue/bullmq/bulk.types';
 import { type RoleCode } from '../../shared/types/types';
+import {
+  paginationQuerySchema,
+  type PaginationQuery,
+} from '../../shared/zod/zod.schemas';
 @UseGuards(AccessTokenGuard, RolesGuard)
 @Controller('admin/user')
 export class UserController {
@@ -52,6 +56,8 @@ export class UserController {
   @Get()
   findAll(
     @Req() request: AuthenticatedRequest,
+    @Query(new ZodValidationPipe(paginationQuerySchema))
+    pagination: PaginationQuery,
     @Query('scope') scope?: 'INSIDIA' | 'MITRA',
     @Query('filter') filter?: 'all' | 'available' | 'deleted',
     @Query('roleCode') roleCode?: RoleCode,
@@ -59,6 +65,7 @@ export class UserController {
     const result = this.userService.findAll({
       auth: request.auth,
       session: request.session,
+      pagination,
       scope: scope ?? 'INSIDIA',
       filter,
       roleCode,
