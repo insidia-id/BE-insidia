@@ -56,12 +56,21 @@ export const baseUserSchema = z.object({
       message: 'role insidia tidak valid',
     })
     .optional(),
-  mitraRoles: z.array(mitraRoleItemSchema).optional(),
+  mitraRoles: z
+    .array(mitraRoleItemSchema, {
+      message: 'mitraRoles harus berupa array',
+    })
+    .optional(),
 
   scope: z.enum(RoleScope, {
     message: 'ruang lingkup permission tidak valid',
   }),
-  status: z.enum(userStatusValues).optional().default('ACTIVE'),
+  status: z
+    .enum(userStatusValues, {
+      message: 'status user tidak valid harus salah satu dari: ACTIVE, BANNED',
+    })
+    .optional()
+    .default('ACTIVE'),
 });
 
 export const createUserSchema = baseUserSchema.superRefine((value, ctx) => {

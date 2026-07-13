@@ -37,7 +37,6 @@ export class BulkService {
         rowNumber: row.rowNumber,
         errors: row.errors,
       }));
-
     return {
       totalRows: rows.length,
       validRows,

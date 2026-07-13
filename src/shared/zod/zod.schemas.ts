@@ -1,6 +1,14 @@
 import { z } from 'zod';
 import { normalizeRoleCode } from '../../modules/access-control/access-control.utils';
 
+export const paginationQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+
+  limit: z.coerce.number().int().min(1).max(100).default(10),
+});
+
+export type PaginationQuery = z.infer<typeof paginationQuerySchema>;
+
 export const optionalNullableDateSchema = z.preprocess((value) => {
   if (value === '' || value == null) return null;
 

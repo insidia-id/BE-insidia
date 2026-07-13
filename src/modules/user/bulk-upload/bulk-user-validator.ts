@@ -17,7 +17,6 @@ export class BulkUserValidatorService {
       if (!result.success) {
         errors.push(...result.error.issues.map((issue) => issue.message));
       }
-
       if (result.success) {
         const email = normalizeEmail(result.data.email);
 
@@ -27,7 +26,6 @@ export class BulkUserValidatorService {
 
         seenEmails.add(email);
       }
-
       return {
         rowNumber: index + 2,
         rawData: row,
