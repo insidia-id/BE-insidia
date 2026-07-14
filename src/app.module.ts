@@ -22,8 +22,13 @@ import { ClassGroupModule } from './modules/class-group/class-group.module';
 import { ClassGroupCourseModule } from './modules/class-group-course/class-group-course.module';
 import { ClassGroupStudentModule } from './modules/class-group-student/class-group-student.module';
 import { MyAcademicModule } from './modules/my-academic/my-academic.module';
+import { ConfigModule } from '@nestjs/config';
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      ignoreEnvFile: process.env.NODE_ENV === 'production',
+    }),
     AuthModule,
     UserModule,
     RolesModule,
