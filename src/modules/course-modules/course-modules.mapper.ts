@@ -74,7 +74,7 @@ export function serializeCourseModuleMitra(module: CourseModuleMitraRecord) {
     createdAt: module.createdAt,
     updatedAt: module.updatedAt,
     totalLearningItems: module._count.learningItems,
-    totalLessons: module.learningItems.filter((item) => item.type === 'LESSON')
+    totalLessons: module.learningItems.filter((item) => item.lesson !== null)
       .length,
     totalQuizzes: module.learningItems.filter((item) => item.type === 'QUIZ')
       .length,

@@ -21,6 +21,14 @@ export const BaseCourseModuleSelect = {
   learningItems: {
     select: {
       type: true,
+      lesson: {
+        where: {
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+        },
+      },
     },
   },
 } satisfies Prisma.ModuleSelect;

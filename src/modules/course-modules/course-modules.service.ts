@@ -295,6 +295,7 @@ export class CourseModulesService {
   }
 
   async findModuleMitraById(id: string) {
+    console.log('findModuleMitraById', id);
     const module = await this.courseModulesRepository.findModuleMitraByid(id);
     if (!module) {
       throw new NotFoundException('Module course tidak ditemukan');
